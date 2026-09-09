@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>How Much? — test fixture</title>
+    <style>
+      body { font: 15px/1.6 system-ui, sans-serif; max-width: 40em; margin: 3em auto; }
+      li { margin: 0.3em 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Price detection fixture</h1>
+    <p>Load the unpacked extension, set a target currency, then open this file.</p>
+    <ul>
+      <li>US dollars: $19.99</li>
+      <li>Euro, symbol after: 1 299,00 &euro;</li>
+      <li>British pounds: &pound;49</li>
+      <li>Japanese yen: &yen;12,800</li>
+      <li>ISO code before: USD 1,250.00</li>
+      <li>ISO code after: 875.50 CHF</li>
+      <li>Canadian dollar: CA$1,499.00</li>
+      <li>Brazilian real: R$ 89,90</li>
+      <li>Polish zloty: 249,99 z&#322;</li>
+      <li>Large amount: &euro;1.234.567,89</li>
+      <li>Should be ignored (no currency): 42 items in stock</li>
+    </ul>
+  </body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>How Much?</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h1>How Much?</h1>
+
+    <label class="row toggle">
+      <input type="checkbox" id="enabled" />
+      <span>Convert prices on pages</span>
+    </label>
+
+    <label class="row">
+      <span>Convert to</span>
+      <select id="targetCurrency"></select>
+    </label>
+
+    <label class="row">
+      <span>Treat "$" as</span>
+      <select id="dollarAssumption">
+        <option value="USD">USD</option>
+        <option value="CAD">CAD</option>
+        <option value="AUD">AUD</option>
+        <option value="NZD">NZD</option>
+        <option value="SGD">SGD</option>
+        <option value="HKD">HKD</option>
+        <option value="MXN">MXN</option>
+      </select>
+    </label>
+
+    <div class="row rates">
+      <span id="ratesStatus">Rates: loading…</span>
+      <button id="refresh" type="button">Refresh</button>
+    </div>
+
+    <script src="currency.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
