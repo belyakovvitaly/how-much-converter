@@ -3,6 +3,10 @@
 // Best-effort, v1: it recognizes common currency symbols and ISO codes placed
 // directly before or after a number. Ambiguous "$" is treated according to the
 // "dollarAssumption" setting (default USD).
+//
+// Two passes are needed. Most pages keep a whole price in one text node, but
+// plenty of stores split it across sibling elements — <span>Gs </span><span>
+// 23.000</span> — where no single text node holds a complete price.
 
 (function () {
   const { SYMBOL_TO_CODE, NUMBER, parseAmount, formatConverted } = self.HMC;
@@ -21,22 +25,25 @@
   let rates = null; // { base, rates: { USD: 1, ... } }
   let observer = null;
 
-  // Build the match regex from the known symbols and codes.
-  function buildRegex() {
-    const symbols = Object.keys(SYMBOL_TO_CODE)
-      .sort((a, b) => b.length - a.length) // longest first
-      .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-      .join("|");
-    const codeAlt = "[A-Z]{3}";
-    const cur = `(?:${symbols}|${codeAlt})`;
-    // <currency><number>  or  <number><currency>
-    return new RegExp(
-      `(${cur})\\s?(${NUMBER})|(${NUMBER})\\s?(${cur})`,
-      "gu"
-    );
-  }
+  // Currency alternation: every known symbol (longest first, so "R$" wins over
+  // "$") plus any three-letter ISO code.
+  const CUR = `(?:${Object.keys(SYMBOL_TO_CODE)
+    .sort((a, b) => b.length - a.length)
+    .map((sym) => sym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|")}|[A-Z]{3})`;
 
-  const RE = buildRegex();
+  // <currency><number> or <number><currency>, anywhere in a run of text.
+  const RE = new RegExp(
+    `(${CUR})\\s?(${NUMBER})|(${NUMBER})\\s?(${CUR})`,
+    "gu"
+  );
+
+  // The same, but matching a whole string — used on elements whose entire text
+  // is one price.
+  const FULL_RE = new RegExp(
+    `^(?:(${CUR})\\s?(${NUMBER})|(${NUMBER})\\s?(${CUR}))$`,
+    "u"
+  );
 
   function resolveCode(token) {
     if (!token) return null;
@@ -55,6 +62,13 @@
     const dest = rates.rates[to];
     if (!from || !dest) return null;
     return (amount / from) * dest;
+  }
+
+  function conversionNode(converted) {
+    const conv = document.createElement("span");
+    conv.className = CONV_CLASS;
+    conv.textContent = ` (≈ ${formatConverted(converted, settings.targetCurrency)})`;
+    return conv;
   }
 
   // Replaces the matched slice of a text node with a wrapper element that keeps
@@ -81,10 +95,7 @@
       wrap.className = WRAP_CLASS;
       wrap.appendChild(document.createTextNode(full));
 
-      const conv = document.createElement("span");
-      conv.className = CONV_CLASS;
-      conv.textContent = ` (≈ ${formatConverted(converted, settings.targetCurrency)})`;
-      wrap.appendChild(conv);
+      wrap.appendChild(conversionNode(converted));
 
       pieces.push(wrap);
       cursor = match.index + full.length;
@@ -98,12 +109,14 @@
     node.parentNode.replaceChild(frag, node);
   }
 
+  const SKIP_SELECTOR = [...SKIP_TAGS].join(",");
+
   function shouldSkip(el) {
     if (!el) return true;
-    if (SKIP_TAGS.has(el.tagName)) return true;
     if (el.isContentEditable) return true;
-    if (el.closest(`.${WRAP_CLASS}`)) return true;
-    return false;
+    // `closest` rather than a tag test: a price inside <pre><span> is still
+    // inside a <pre>, and our own markup must never be re-scanned.
+    return Boolean(el.closest(`${SKIP_SELECTOR},.${WRAP_CLASS},.${CONV_CLASS}`));
   }
 
   function walk(root) {
@@ -126,13 +139,56 @@
     targets.forEach(annotateNode);
   }
 
+  // Second pass: elements whose entire text is a single price, assembled from
+  // more than one child. Only shallow elements qualify — one to three children,
+  // none of which has children of its own — which is what the split-price
+  // markup in the wild looks like and keeps this from reading textContent off
+  // large subtrees.
+  function annotateSplit(root) {
+    // Reverse document order puts descendants before their ancestors, so the
+    // innermost element around a price claims it and the outer ones then see
+    // the annotation already inside and leave it alone.
+    const all = root.querySelectorAll("*");
+    for (let i = all.length - 1; i >= 0; i--) {
+      const el = all[i];
+      const kids = el.children;
+      if (kids.length < 1 || kids.length > 3) continue;
+      let shallow = true;
+      for (const kid of kids) {
+        if (kid.children.length) { shallow = false; break; }
+      }
+      if (!shallow || shouldSkip(el)) continue;
+      if (el.querySelector(`.${CONV_CLASS}`)) continue;
+
+      const text = el.textContent;
+      if (text.length > 40) continue;
+      const match = FULL_RE.exec(text.replace(/\s+/gu, " ").trim());
+      if (!match) continue;
+
+      const amount = parseAmount(match[2] || match[3]);
+      const converted =
+        amount == null ? null : convert(amount, resolveCode(match[1] || match[4]));
+      if (converted == null) continue;
+
+      el.appendChild(conversionNode(converted));
+    }
+  }
+
   // Undo every annotation so a settings change can be re-applied cleanly.
   function unwrapAll() {
+    document.querySelectorAll(`.${CONV_CLASS}`).forEach((el) => el.remove());
     document.querySelectorAll(`.${WRAP_CLASS}`).forEach((wrap) => {
-      const conv = wrap.querySelector(`.${CONV_CLASS}`);
-      if (conv) conv.remove();
       wrap.replaceWith(document.createTextNode(wrap.textContent));
     });
+  }
+
+  // Runs both passes, then drops the mutation records our own edits produced so
+  // the observer does not treat them as a page change and loop forever.
+  function apply(root = document.body) {
+    if (!rates || !settings.enabled) return;
+    walk(root);
+    annotateSplit(root);
+    if (observer) observer.takeRecords();
   }
 
   const debounce = (fn, ms) => {
@@ -145,7 +201,7 @@
 
   const rescan = debounce(() => {
     unwrapAll();
-    walk(document.body);
+    apply();
   }, 400);
 
   function startObserver() {
@@ -182,8 +238,8 @@
     rates = await getRates();
     if (!rates) return;
 
-    walk(document.body);
     startObserver();
+    apply();
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {
