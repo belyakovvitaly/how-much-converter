@@ -15,7 +15,7 @@
 }
 
 body {
-  width: 260px;
+  width: 300px;
   margin: 0;
   padding: 14px;
   font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -39,8 +39,17 @@ h1 {
   justify-content: flex-start;
 }
 
-select {
+.row > span {
   flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+select {
+  /* Currency names make these long; let them shrink and truncate instead of
+     pushing the popup wider. */
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 62%;
   padding: 3px 6px;
   border: 1px solid var(--border);
   border-radius: 5px;

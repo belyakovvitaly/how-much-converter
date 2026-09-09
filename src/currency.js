@@ -14,27 +14,112 @@ const SYMBOL_TO_CODE = {
   "HK$": "HKD",
   "NZ$": "NZD",
   "S$": "SGD",
+  "NT$": "TWD",
   "R$": "BRL",
+  "MX$": "MXN",
+  "AR$": "ARS",
+  "CL$": "CLP",
+  "COL$": "COP",
+  "U$S": "UYU",
+  "RD$": "DOP",
+  "B/.": "PAB",
+  "S/": "PEN",
+  "₲": "PYG",
+  "Gs.": "PYG",
+  "Gs": "PYG",
   "€": "EUR",
   "£": "GBP",
   "¥": "JPY",
   "₩": "KRW",
   "₽": "RUB",
   "₴": "UAH",
+  "₾": "GEL",
   "₺": "TRY",
   "₹": "INR",
   "₪": "ILS",
+  "₱": "PHP",
+  "₡": "CRC",
+  "₦": "NGN",
   "฿": "THB",
   "zł": "PLN",
   "Kč": "CZK",
   "$": "USD", // ambiguous; overridable via the "dollarAssumption" setting
 };
 
-// Currencies offered in the popup dropdown.
-const CURRENCIES = [
-  "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "SGD", "HKD",
-  "CNY", "INR", "KRW", "RUB", "UAH", "TRY", "BRL", "MXN", "ZAR", "PLN",
-  "CZK", "SEK", "NOK", "DKK", "ILS", "AED", "SAR", "THB", "IDR", "PHP",
+// Every currency the extension knows about, with a display name for the
+// popup's dropdowns.
+const CURRENCY_NAMES = {
+  AED: "UAE dirham",
+  ARS: "Argentine peso",
+  AUD: "Australian dollar",
+  BGN: "Bulgarian lev",
+  BOB: "Bolivian boliviano",
+  BRL: "Brazilian real",
+  CAD: "Canadian dollar",
+  CHF: "Swiss franc",
+  CLP: "Chilean peso",
+  CNY: "Chinese yuan",
+  COP: "Colombian peso",
+  CRC: "Costa Rican colón",
+  CUP: "Cuban peso",
+  CZK: "Czech koruna",
+  DKK: "Danish krone",
+  DOP: "Dominican peso",
+  EGP: "Egyptian pound",
+  EUR: "Euro",
+  GBP: "Pound sterling",
+  GEL: "Georgian lari",
+  GTQ: "Guatemalan quetzal",
+  HKD: "Hong Kong dollar",
+  HUF: "Hungarian forint",
+  IDR: "Indonesian rupiah",
+  ILS: "Israeli new shekel",
+  INR: "Indian rupee",
+  JPY: "Japanese yen",
+  KRW: "South Korean won",
+  KZT: "Kazakhstani tenge",
+  MXN: "Mexican peso",
+  MYR: "Malaysian ringgit",
+  NGN: "Nigerian naira",
+  NOK: "Norwegian krone",
+  NZD: "New Zealand dollar",
+  PAB: "Panamanian balboa",
+  PEN: "Peruvian sol",
+  PHP: "Philippine peso",
+  PLN: "Polish złoty",
+  PYG: "Paraguayan guaraní",
+  RON: "Romanian leu",
+  RSD: "Serbian dinar",
+  RUB: "Russian ruble",
+  SAR: "Saudi riyal",
+  SEK: "Swedish krona",
+  SGD: "Singapore dollar",
+  THB: "Thai baht",
+  TRY: "Turkish lira",
+  TWD: "New Taiwan dollar",
+  UAH: "Ukrainian hryvnia",
+  USD: "US dollar",
+  UYU: "Uruguayan peso",
+  VES: "Venezuelan bolívar",
+  VND: "Vietnamese dong",
+  ZAR: "South African rand",
+};
+
+// Currencies offered in the popup's "Convert to" dropdown.
+const CURRENCIES = Object.keys(CURRENCY_NAMES).sort();
+
+// Currencies that write themselves with a bare "$", offered in the popup's
+// "Treat $ as" dropdown. Grouped because the pesos are the usual surprise:
+// half of Latin America prints "$" and means something other than USD.
+const DOLLAR_CURRENCIES = [
+  {
+    label: "Pesos",
+    codes: ["ARS", "CLP", "COP", "CUP", "DOP", "MXN", "PHP", "UYU"],
+  },
+  {
+    label: "Dollars",
+    codes: ["USD", "AUD", "CAD", "HKD", "NZD", "SGD", "TWD"],
+  },
 ];
 
 // Number token: 1 234 567,89 / 1,234,567.89 / 1234.5 / 1234
@@ -76,11 +161,21 @@ function parseAmount(raw) {
 
 // Formats a converted amount for display, e.g. "1,234.50 EUR".
 function formatConverted(amount, code) {
+  // Drop the cents on larger amounts, but never ask for more precision than
+  // the currency itself has: Intl throws when the maximum it is given falls
+  // below the currency's own minimum (2 for USD, 0 for JPY/PYG).
+  const wanted = amount >= 100 ? 0 : 2;
   try {
+    const plain = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code,
+    });
+    const digits = Math.min(wanted, plain.resolvedOptions().maximumFractionDigits);
     return new Intl.NumberFormat(undefined, {
       style: "currency",
       currency: code,
-      maximumFractionDigits: amount >= 100 ? 0 : 2,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
     }).format(amount);
   } catch {
     return `${amount.toFixed(2)} ${code}`;
@@ -89,5 +184,13 @@ function formatConverted(amount, code) {
 
 // Exposed for content.js (classic script scope) and popup.js (module-ish use).
 if (typeof self !== "undefined") {
-  self.HMC = { SYMBOL_TO_CODE, CURRENCIES, NUMBER, parseAmount, formatConverted };
+  self.HMC = {
+    SYMBOL_TO_CODE,
+    CURRENCY_NAMES,
+    CURRENCIES,
+    DOLLAR_CURRENCIES,
+    NUMBER,
+    parseAmount,
+    formatConverted,
+  };
 }
