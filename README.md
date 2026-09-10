@@ -7,8 +7,6 @@ them in the currency you care about, inline, next to the original:
 
 No build step, no framework, no API key.
 
-![Prices on a page, converted inline](docs/screenshot-inline.png)
-
 Prices the page renders as separate elements (`<span>Gs</span><span>23.000</span>`,
 which is how most store templates emit them) are handled too. The popup picks the
 target currency and settles what a bare `$` means — much of Latin America prints
