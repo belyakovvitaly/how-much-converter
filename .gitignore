@@ -8,3 +8,6 @@
 # Packaged builds
 *.zip
 dist/
+
+# Screenshot harness
+.screenshot-tmp/

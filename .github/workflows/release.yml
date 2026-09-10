@@ -1,0 +1,33 @@
+# Attaches an installable zip to a GitHub release, so people can install the
+# extension without cloning: download, unzip, "Load unpacked".
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches manifest.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' manifest.json | head -1)
+          if [ "$tag" != "$manifest" ]; then
+            echo "tag $tag != manifest version $manifest" >&2
+            exit 1
+          fi
+
+      - name: Build
+        run: ./tools/build.sh
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

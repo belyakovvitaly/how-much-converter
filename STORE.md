@@ -71,12 +71,12 @@ version it has already seen.
 **Privacy policy URL** — the raw or Pages URL of [PRIVACY.md](PRIVACY.md), e.g.
 `https://github.com/belyakovvitaly/how-much-converter/blob/main/PRIVACY.md`
 
-## Assets still needed
+## Assets
 
-- **Screenshots**: 1 to 5, each 1280×800 or 640×400 PNG/JPEG. At least one is
-  required. Best subjects: a foreign store page with conversions inline, and
-  the popup with a currency selected.
-- **Small promo tile**: 440×280 PNG. Optional, but required to be eligible for
-  any store promotion.
-
-The 128×128 icon the listing needs is already in `icons/`.
+- **Screenshots** — ready, at the required 1280×800:
+  [`docs/screenshot-inline.png`](docs/screenshot-inline.png) (conversions on a
+  page) and [`docs/screenshot-popup.png`](docs/screenshot-popup.png) (the
+  popup). Regenerate with `./tools/screenshots.sh`.
+- **Icon** — the 128×128 the listing needs is in `icons/`.
+- **Small promo tile** — 440×280 PNG, still missing. Optional, and only needed
+  to be eligible for store promotion.

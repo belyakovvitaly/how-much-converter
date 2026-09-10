@@ -1,0 +1,118 @@
+<!doctype html>
+<!--
+  Demo storefront. Its prices use the same markup shapes as the real shops the
+  extension was built against: a symbol and a number in sibling elements, the
+  way most store templates emit them, alongside plain single-node prices.
+
+  Used for the README screenshots — load the unpacked extension, set a target
+  currency, and open this file.
+-->
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mercado — demo</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #1b2430;
+        background: #f4f6f8;
+      }
+      header {
+        background: #16603a;
+        color: #fff;
+        padding: 14px 40px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+      }
+      header .logo { font-size: 19px; font-weight: 700; letter-spacing: -0.3px; }
+      header nav { display: flex; gap: 20px; font-size: 13px; opacity: 0.9; }
+      main { padding: 26px 40px 40px; }
+      h2 { font-size: 15px; margin: 0 0 14px; font-weight: 600; }
+      h2 .muted { color: #6b7785; font-weight: 400; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 26px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e3e8ee;
+        border-radius: 10px;
+        padding: 16px;
+      }
+      .thumb {
+        height: 84px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        background: linear-gradient(135deg, #eef2f6, #dde5ec);
+      }
+      .name { font-size: 13px; margin-bottom: 2px; }
+      .brand { font-size: 11px; color: #8a94a0; text-transform: uppercase; letter-spacing: 0.4px; }
+      .price { margin-top: 10px; font-size: 19px; font-weight: 700; color: #16603a; }
+      .price .mon { font-size: 13px; font-weight: 600; margin-right: 3px; }
+      .was { margin-top: 2px; font-size: 12px; color: #98a2ae; text-decoration: line-through; }
+      .rows { background: #fff; border: 1px solid #e3e8ee; border-radius: 10px; }
+      .rows div {
+        display: flex;
+        justify-content: space-between;
+        padding: 11px 16px;
+        border-top: 1px solid #eef1f5;
+      }
+      .rows div:first-child { border-top: 0; }
+      .rows b { font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="logo">Mercado</span>
+      <nav><span>Ofertas</span><span>Almacén</span><span>Bebidas</span><span>Limpieza</span></nav>
+    </header>
+
+    <main>
+      <h2>Destacados del mes <span class="muted">— precios en guaraníes</span></h2>
+      <div class="grid">
+        <div class="card">
+          <div class="thumb"></div>
+          <div class="brand">Paladar</div>
+          <div class="name">Pan rallado 250 g</div>
+          <div class="price"><span class="mon">Gs</span><span class="val">23.000</span></div>
+          <div class="was"><span class="mon">Gs</span><span class="val">38.300</span></div>
+        </div>
+        <div class="card">
+          <div class="thumb"></div>
+          <div class="brand">Pechugón</div>
+          <div class="name">Hamburguesa de pollo 12 un.</div>
+          <div class="price"><span class="mon">Gs</span><span class="val">24.850</span></div>
+        </div>
+        <div class="card">
+          <div class="thumb"></div>
+          <div class="brand">Omo</div>
+          <div class="name">Jabón líquido 1,8 L</div>
+          <div class="price"><span class="mon">Gs</span><span class="val">39.600</span></div>
+          <div class="was"><span class="mon">Gs</span><span class="val">49.500</span></div>
+        </div>
+        <div class="card">
+          <div class="thumb"></div>
+          <div class="brand">Bianca</div>
+          <div class="name">Mayonesa 250 g</div>
+          <div class="price"><span class="mon">Gs</span><span class="val">5.000</span></div>
+        </div>
+      </div>
+
+      <h2>Importados <span class="muted">— cada tienda escribe el precio a su manera</span></h2>
+      <div class="rows">
+        <div><span>Peso uruguayo, símbolo y número en elementos distintos</span>
+          <b class="price"><span class="mon">$</span><span class="val">145</span></b></div>
+        <div><span>Dólares, escritos como en el Río de la Plata</span> <b>U$S 199</b></div>
+        <div><span>Euro, símbolo después del número</span> <b>1 299,00 €</b></div>
+        <div><span>Real brasileño, coma decimal</span> <b>R$ 89,90</b></div>
+        <div><span>Código ISO en lugar del símbolo</span> <b>875.50 CHF</b></div>
+        <div><span>Sin moneda — no se toca</span> <b>42 unidades en stock</b></div>
+      </div>
+    </main>
+  </body>
+</html>
