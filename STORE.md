@@ -8,6 +8,42 @@ with `manifest.json` at the archive root, which is what the store expects.
 Bump `"version"` in `manifest.json` before every upload; the store refuses a
 version it has already seen.
 
+## Walkthrough
+
+Steps only the account holder can take are marked **(you)** — they involve
+signing in, paying, or making a legal declaration. Everything else is already
+prepared in this file.
+
+**Before the dashboard**
+
+1. **(you)** Turn on 2-Step Verification on the Google account you will publish
+   from. The store refuses to publish without it. Note that the developer email
+   cannot be changed later, so pick the account you intend to keep.
+2. Have the upload ready: `./tools/build.sh`, or download the zip from the
+   [latest release](https://github.com/belyakovvitaly/how-much-converter/releases/latest).
+
+**Registration** — <https://chrome.google.com/webstore/devconsole/>
+
+3. **(you)** Sign in, accept the developer agreement, and pay the one-time $5
+   registration fee.
+4. **(you)** Declare Trader or Non-Trader. A Trader's legal name, address and
+   phone are published at the bottom of the listing.
+5. **(you)** Verify the contact email the dashboard asks for.
+
+**The item**
+
+6. **Add new item** → **Choose file** → the zip → **Upload**.
+7. *Store listing* tab: name, short description, detailed description and
+   category from the sections below; upload both PNGs from `docs/`.
+8. *Privacy* tab: single purpose, the three permission justifications, and the
+   data-usage certification — all below. Privacy policy URL:
+   <https://github.com/belyakovvitaly/how-much-converter/blob/main/PRIVACY.md>
+9. *Distribution* tab: countries, and visibility. **Unlisted** installs in one
+   click from a link but is not searchable, and can be switched to Public later
+   without another review — the safer first publish.
+10. **(you)** Submit for review. Expect several days; the `<all_urls>` content
+    script draws a closer look than most permissions.
+
 ## Listing
 
 **Name** — How Much? — Currency Price Converter
