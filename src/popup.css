@@ -76,3 +76,42 @@ button {
 button:hover {
   border-color: var(--accent);
 }
+
+/* Reported pages: a local list of URLs where conversion did not work. It never
+   leaves this browser, so it lives in chrome.storage.local like the settings. */
+.reports {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.muted {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+#reportItems {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  max-height: 150px;
+  overflow-y: auto;
+  font-size: 11px;
+}
+
+#reportItems li {
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+  word-break: break-all;
+}
+
+#reportItems .when {
+  color: var(--muted);
+}

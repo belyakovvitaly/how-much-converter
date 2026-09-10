@@ -32,6 +32,12 @@
         <span class="productPrice"><span>Gs&nbsp;</span><span>&nbsp;23.000</span></span></li>
       <li>Split across elements (geant.com.uy):
         <span class="text"><span>$</span><span>145</span></span></li>
+      <li>Spelled out, not signed: 340 руб/шт</li>
+      <li>Spelled out, in prose: купил за 340 рублей</li>
+      <li>Currency in a nested span (vkusvill.ru):
+        <span class="Price">334 <span class="Currency"><span>руб</span></span>/шт</span></li>
+      <li>Should be ignored (a word, not a currency): купил 340 рубанков</li>
+      <li>Should be ignored (crypto ticker, not USD): 500 USDT</li>
       <li>Should be ignored (no currency): 42 items in stock</li>
     </ul>
   </body>

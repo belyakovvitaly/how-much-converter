@@ -34,8 +34,11 @@ version it has already seen.
 >   store templates are actually built.
 > • A bare "$" is ambiguous — much of Latin America prints it and means a peso.
 >   Tell the extension what "$" should mean on the sites you use.
+> • Recognizes currencies that are spelled out rather than signed (340 руб).
 > • Rates come from a public exchange-rate service and are cached for six
 >   hours; refresh them yourself any time from the popup.
+> • Found a shop it misses? "Report this page" keeps the address in a list only
+>   you can see, stored in your own browser.
 >
 > No account, no analytics, no tracking. Your settings stay on your machine and
 > nothing about the pages you visit ever leaves your browser.
@@ -49,8 +52,9 @@ version it has already seen.
 **Justification — `storage`**
 
 > Stores the user's three settings (target currency, what a bare "$" means, and
-> whether conversion is on) and caches the exchange-rate table so the extension
-> does not refetch rates on every page load.
+> whether conversion is on), caches the exchange-rate table so the extension does
+> not refetch rates on every page load, and holds the list of pages the user
+> marked as not converting correctly. All of it is local; none is transmitted.
 
 **Justification — host permission `https://open.er-api.com/*`**
 

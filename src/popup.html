@@ -28,6 +28,22 @@
       <button id="refresh" type="button">Refresh</button>
     </div>
 
+    <div class="reports">
+      <div class="row">
+        <button id="report" type="button">Report this page</button>
+        <span id="reportStatus" class="muted"></span>
+      </div>
+
+      <details id="reportList" hidden>
+        <summary><span id="reportCount"></span></summary>
+        <ul id="reportItems"></ul>
+        <div class="row">
+          <button id="copyReports" type="button">Copy all</button>
+          <button id="clearReports" type="button">Clear</button>
+        </div>
+      </details>
+    </div>
+
     <script src="currency.js"></script>
     <script src="popup.js"></script>
   </body>

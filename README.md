@@ -61,16 +61,28 @@ GitHub release.
 | Rates | `src/background.js` | Fetches a USD-based rate table from [open.er-api.com](https://open.er-api.com) and caches it in `chrome.storage.local` for 6 hours. All pairs are derived as cross rates. |
 | Detection | `src/currency.js` | Symbol/ISO-code tables and a locale-aware number parser (`1 234,56` vs `1,234.56`). |
 | Page changes | `src/content.js` | Two passes — text nodes that hold a whole price, then shallow elements that spread one across children — appending the converted value in a `.hmc-conv` span, and re-scanning on DOM mutations. |
-| Settings | `src/popup.*` | Target currency, what `$` should mean, on/off, and a manual rate refresh. |
+| Settings | `src/popup.*` | Target currency, what `$` should mean, on/off, a manual rate refresh, and the list of reported pages. |
 
-## Known limitations (v1)
+## Reporting a page that does not work
+
+Detection is heuristics against markup nobody standardized, so some shops will
+slip through. The popup has **Report this page**, which saves that page's URL to
+a list you can read, copy, and clear from the popup itself.
+
+The list lives in `chrome.storage.local` and goes nowhere — no server, no
+account, nothing sent anywhere. It exists in this browser profile only, which
+also means it does not follow you to another machine.
+
+## Known limitations
 
 - Only currencies placed **directly** before or after the number are recognized
-  (`$5`, `5 USD`), not prose like "five dollars" or "USD five".
+  (`$5`, `5 USD`, `340 руб`), not prose like "five dollars".
 - A bare `$` is assumed to be USD unless you change **Treat "$" as** in the popup.
-- A price split across elements is only found when the element holding it
-  contains nothing else (`<span><span>$</span><span>5</span></span>`), which is
-  the common store-template shape but not the only one.
+- A split price is found only when the element around it is small — up to three
+  children, six descendants, and 40 characters of text once whitespace is
+  collapsed. That covers the usual store-template shapes, not every one.
+- An element holding two split prices at once is skipped, because there is no
+  way to say which one an appended conversion belongs to.
 
 ## Roadmap ideas
 

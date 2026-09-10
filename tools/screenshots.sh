@@ -23,7 +23,8 @@ STUB='<script>
                dollarAssumption: "UYU", ratesCache: { fetchedAt: Date.now() - 1000 } }), set() {} },
                onChanged: { addListener() {} } },
     runtime: { sendMessage: (m, cb) => cb({ ok: true, cache: { base: "USD", fetchedAt: Date.now(),
-               rates: { USD: 1, UYU: 40.1, PYG: 7300, EUR: 0.921, BRL: 5.42, CHF: 0.879 } } }) },
+               rates: { USD: 1, UYU: 40.1, PYG: 7300, EUR: 0.921, BRL: 5.42, CHF: 0.879 } } }),
+               onMessage: { addListener() {} } },
   };
 </script>'
 
@@ -37,7 +38,7 @@ inline = demo.replace("  </body>", f'''    {stub}
   </body>''')
 (tmp / "inline.html").write_text(inline, encoding="utf-8")
 (tmp / "popup.html").write_text(inline.replace("  </body>", '''    <style>
-      #shot-popup { position: fixed; top: 14px; right: 22px; width: 330px; height: 205px;
+      #shot-popup { position: fixed; top: 14px; right: 22px; width: 330px; height: 243px;
         border: 0; border-radius: 12px; background: #fff; z-index: 9999;
         box-shadow: 0 12px 34px rgba(12,22,38,.28), 0 2px 6px rgba(12,22,38,.12); }
     </style>

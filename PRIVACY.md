@@ -14,6 +14,13 @@ conversion is on — plus a cached table of exchange rates. All of it lives in
 `chrome.storage.local`, on your own machine. It is never uploaded, and it is
 deleted when you remove the extension.
 
+## Reported pages
+
+If you use **Report this page**, the address of that page is added to a list in
+`chrome.storage.local` — the same local storage as the settings. It is not sent
+anywhere. Nobody but you can read it, it is visible only in the extension's own
+popup, and **Clear** deletes it.
+
 ## What is read from web pages
 
 To find prices, the extension reads the text of the pages you visit and adds a

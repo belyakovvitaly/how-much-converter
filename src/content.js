@@ -26,23 +26,19 @@
   let observer = null;
 
   // Currency alternation: every known symbol (longest first, so "R$" wins over
-  // "$") plus any three-letter ISO code.
-  const CUR = `(?:${Object.keys(SYMBOL_TO_CODE)
+  // "$") plus any three-letter ISO code, fenced by letters on both sides so a
+  // token cannot be a slice of a longer word. Without the lookahead, "руб"
+  // matches inside "рубанок" and "USD" inside "USDT"; without the lookbehind,
+  // "BURGERBIF 2 un." reads as 2 Burundian francs.
+  const CUR = `(?<![\\p{L}])(?:${Object.keys(SYMBOL_TO_CODE)
     .sort((a, b) => b.length - a.length)
     .map((sym) => sym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|")}|[A-Z]{3})`;
+    .join("|")}|[A-Z]{3})(?![\\p{L}])`;
 
   // <currency><number> or <number><currency>, anywhere in a run of text.
   const RE = new RegExp(
     `(${CUR})\\s?(${NUMBER})|(${NUMBER})\\s?(${CUR})`,
     "gu"
-  );
-
-  // The same, but matching a whole string — used on elements whose entire text
-  // is one price.
-  const FULL_RE = new RegExp(
-    `^(?:(${CUR})\\s?(${NUMBER})|(${NUMBER})\\s?(${CUR}))$`,
-    "u"
   );
 
   function resolveCode(token) {
@@ -139,11 +135,19 @@
     targets.forEach(annotateNode);
   }
 
-  // Second pass: elements whose entire text is a single price, assembled from
-  // more than one child. Only shallow elements qualify — one to three children,
-  // none of which has children of its own — which is what the split-price
-  // markup in the wild looks like and keeps this from reading textContent off
-  // large subtrees.
+  // A split price lives in a small element: a handful of nodes holding one
+  // number, one currency, and maybe a unit. These bounds keep the pass off
+  // large subtrees, whose textContent would be expensive to read.
+  const SPLIT_MAX_CHILDREN = 3;
+  const SPLIT_MAX_DESCENDANTS = 6;
+  const SPLIT_MAX_TEXT = 40;
+  // Before whitespace is collapsed; only there to bound the work above.
+  const SPLIT_MAX_RAW_TEXT = 400;
+
+  // Second pass: small elements holding exactly one price that no single text
+  // node contains on its own — <span>Gs</span><span>23.000</span>, or a number
+  // followed by a currency in a nested span. The price need not be the whole
+  // text: shops append units to it ("340 руб/шт").
   function annotateSplit(root) {
     // Reverse document order puts descendants before their ancestors, so the
     // innermost element around a price claims it and the outer ones then see
@@ -151,20 +155,23 @@
     const all = root.querySelectorAll("*");
     for (let i = all.length - 1; i >= 0; i--) {
       const el = all[i];
-      const kids = el.children;
-      if (kids.length < 1 || kids.length > 3) continue;
-      let shallow = true;
-      for (const kid of kids) {
-        if (kid.children.length) { shallow = false; break; }
-      }
-      if (!shallow || shouldSkip(el)) continue;
+      if (el.childElementCount < 1 || el.childElementCount > SPLIT_MAX_CHILDREN) continue;
+      if (el.getElementsByTagName("*").length > SPLIT_MAX_DESCENDANTS) continue;
+      if (shouldSkip(el)) continue;
       if (el.querySelector(`.${CONV_CLASS}`)) continue;
 
-      const text = el.textContent;
-      if (text.length > 40) continue;
-      const match = FULL_RE.exec(text.replace(/\s+/gu, " ").trim());
-      if (!match) continue;
+      const raw = el.textContent;
+      // Cheap bound first: markup indentation inflates textContent, so the real
+      // cap has to be measured after collapsing whitespace, not before.
+      if (raw.length > SPLIT_MAX_RAW_TEXT) continue;
+      const text = raw.replace(/\s+/gu, " ").trim();
+      if (text.length > SPLIT_MAX_TEXT) continue;
 
+      // Exactly one price, or we cannot say which the appended value refers to.
+      const matches = [...text.matchAll(RE)];
+      if (matches.length !== 1) continue;
+
+      const [match] = matches;
       const amount = parseAmount(match[2] || match[3]);
       const converted =
         amount == null ? null : convert(amount, resolveCode(match[1] || match[4]));
@@ -241,6 +248,19 @@
     startObserver();
     apply();
   }
+
+  // The popup asks the page about itself when you report it. Answering from the
+  // content script means the popup needs no permission to read tab URLs — this
+  // script is already running here.
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg && msg.type === "pageInfo") {
+      sendResponse({
+        url: location.href,
+        title: document.title,
+        converted: document.querySelectorAll(`.${CONV_CLASS}`).length,
+      });
+    }
+  });
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
