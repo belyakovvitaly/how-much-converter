@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>How Much? — price token detection</title>
+    <style>
+      body { font: 14px/1.5 ui-monospace, monospace; max-width: 72em; margin: 2em auto; }
+      .fail { color: #b00; font-weight: bold; }
+      h1, h2 { font-family: system-ui, sans-serif; }
+      #summary { font-size: 1.2em; margin-top: 1em; }
+    </style>
+  </head>
+  <body>
+    <h1>Price token detection</h1>
+    <p>Every line should say "ok". Columns: text &rarr; currency, amount.</p>
+    <pre id="out">running…</pre>
+    <div id="summary"></div>
+
+    <script src="../src/currency.js"></script>
+    <script>
+      (function () {
+        const H = self.HMC;
+        const RE = H.buildPriceRegExp();
+        const known = (v) => {
+          const up = String(v || "").trim().toUpperCase();
+          return /^[A-Z]{3}$/.test(up) && H.CURRENCY_NAMES[up] ? up : null;
+        };
+
+        // First price in the text, the way content.js reads one.
+        const read = (text, pageCurrency, dollarAssumption) => {
+          RE.lastIndex = 0;
+          let m;
+          while ((m = RE.exec(text)) !== null) {
+            const code = H.resolveSymbol(m[1] || m[4], {
+              pageCurrency: pageCurrency || null,
+              dollarAssumption: dollarAssumption || "auto",
+              isKnownCode: known,
+            });
+            if (code) return [code, H.parseAmount(m[2] || m[3])];
+          }
+          return [null, null];
+        };
+
+        // [text, pageCurrency, expected code, expected amount]
+        const cases = [
+          // --- tokens that stand on their own ---
+          ["57.249 TL", null, "TRY", 57249],
+          ["399 990 Ft", null, "HUF", 399990],
+          ["Rp 9.499.000", null, "IDR", 9499000],
+          ["RM 3,499.00", null, "MYR", 3499],
+          ["9.900.000 ₫", null, "VND", 9900000],
+          ["9.900.000đ", null, "VND", 9900000],
+          ["129.990 дин.", null, "RSD", 129990],
+
+          // --- scripts that do not space their words ---
+          ["12,800円", null, "JPY", 12800],
+          ["1000円以上", null, "JPY", 1000],
+          ["1,299,000원", null, "KRW", 1299000],
+          ["1,290 บาท", null, "THB", 1290],
+
+          // --- ambiguous: the page decides ---
+          ["4 990 kr", "SEK", "SEK", 4990],
+          ["4 990 kr", "NOK", "NOK", 4990],
+          ["4 990 kr", null, null, null],
+          ["4 990 kr", "EUR", null, null],
+          ["1.299,99 lei", "RON", "RON", 1299.99],
+          ["1.299,99 lei", null, null, null],
+          ["Rs. 79,900", "INR", "INR", 79900],
+          ["Rs. 79,900", null, null, null],
+          ["¥5,999", "CNY", "CNY", 5999],
+          ["¥12,800", "JPY", "JPY", 12800],
+          ["¥5,999", null, null, null],
+          ["$18,999.00", "MXN", "MXN", 18999],
+          ["$19.99", "USD", "USD", 19.99],
+          ["$19.99", null, null, null],
+
+          // --- the "$" setting still overrides ---
+          [["$19.99", null, "USD"], null, "USD", 19.99],
+          [["$18,999.00", "MXN", "ARS"], null, "ARS", 18999],
+
+          // --- old behaviour, unchanged ---
+          ["1 299,00 €", null, "EUR", 1299],
+          ["£49", null, "GBP", 49],
+          ["CA$1,499.00", null, "CAD", 1499],
+          ["R$ 89,90", null, "BRL", 89.9],
+          ["249,99 zł", null, "PLN", 249.99],
+          ["24 990 Kč", null, "CZK", 24990],
+          ["99 999₴", null, "UAH", 99999],
+          ["S/ 3,499", null, "PEN", 3499],
+          ["Gs 23.000", null, "PYG", 23000],
+          ["340 руб/шт", null, "RUB", 340],
+          ["CHF 1’299.00", null, "CHF", 1299],
+          ["875.50 CHF", null, "CHF", 875.5],
+
+          // --- must NOT match ---
+          ["купил 340 рубанков", null, null, null],
+          ["500 USDT", null, null, null],
+          ["42 items in stock", null, null, null],
+          ["the 90's were great", null, null, null],
+          ["12 kronor är inte kr", "SEK", null, null],
+          ["a 12 Rsync run", "INR", null, null],
+          ["R 1 299,00", "ZAR", null, null],
+          ["2026元旦", "CNY", null, null],
+        ];
+
+        let fail = 0;
+        const lines = cases.map((c) => {
+          const [spec, page, wantCode, wantAmount] = c;
+          const [text, , dollar] = Array.isArray(spec) ? spec : [spec];
+          const ctx = Array.isArray(spec) ? spec[1] : page;
+          const [code, amount] = read(text, ctx, dollar);
+          const ok =
+            code === wantCode &&
+            (wantAmount === null ? amount === null : Math.abs(amount - wantAmount) < 1e-9);
+          if (!ok) fail++;
+          const shown = `${JSON.stringify(text)}${ctx ? ` [page ${ctx}]` : ""}${dollar ? ` [$=${dollar}]` : ""}`;
+          return `${ok ? "ok  " : "FAIL"}  ${shown.padEnd(40, " ")} -> ${code} ${amount}` +
+            (ok ? "" : `   (expected ${wantCode} ${wantAmount})`);
+        });
+
+        document.getElementById("out").textContent = lines.join("\n");
+        const summary = document.getElementById("summary");
+        summary.textContent = `${cases.length - fail} ok, ${fail} fail`;
+        if (fail) summary.className = "fail";
+      })();
+    </script>
+  </body>
+</html>

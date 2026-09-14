@@ -53,6 +53,27 @@ const SYMBOL_TO_CODE = {
   "฿": "THB",
   "zł": "PLN",
   "Kč": "CZK",
+  // Codes a shop writes instead of a sign. Turkey says TL far more often than
+  // ₺, Hungary Ft, Indonesia Rp, Malaysia RM.
+  "TL": "TRY",
+  "Ft": "HUF",
+  "Rp": "IDR",
+  "RM": "MYR",
+  "дин.": "RSD",
+  "дин": "RSD",
+  // Scripts that do not space their words. These must stay out of the fenced
+  // group below or they would never match: the character after them is usually
+  // another letter.
+  "₫": "VND",
+  "đ": "VND",
+  "円": "JPY",
+  "원": "KRW",
+  "บาท": "THB",
+  // Ambiguous, and so only resolved when the page says which country it is.
+  "kr": "SEK",
+  "lei": "RON",
+  "Rs.": "INR",
+  "Rs": "INR",
   "$": "USD", // ambiguous; overridable via the "dollarAssumption" setting
 };
 
@@ -142,6 +163,16 @@ const DOLLAR_CURRENCIES = [
 const AMBIGUOUS_SYMBOLS = {
   "$": DOLLAR_CURRENCIES.flatMap((group) => group.codes),
   "\u00a5": ["JPY", "CNY"],
+  // Scandinavia's krone, three countries deep, at rates close enough that a
+  // wrong one passes for right.
+  kr: ["SEK", "NOK", "DKK"],
+  // One candidate each, but still worth a signal: "lei" is Moldovan as well as
+  // Romanian, and "Rs" is Pakistani, Sri Lankan and Nepali as well as Indian.
+  // Those currencies are not converted here, so the only safe reading of the
+  // token on their pages is none at all.
+  lei: ["RON"],
+  Rs: ["INR"],
+  "Rs.": ["INR"],
 };
 
 // Country (a ccTLD, or the region subtag of a lang attribute) to the currency
@@ -276,6 +307,49 @@ function detectPageCurrency(doc, loc, isKnownCode) {
 // and the typewriter spelling; a shop picks one or the other.
 const NUMBER = String.raw`\d{1,3}(?:[.,   '’]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?`;
 
+// A token written in a script that spaces its words has to be fenced off by
+// letters, or "руб" matches inside "рубанок" and "USD" inside "USDT". A token
+// in a script that does not space its words — 円, 원, บาท — must not be fenced,
+// because the character right after it is usually another letter and the fence
+// would reject every real price.
+const SPACED_SCRIPT = /[\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Greek}]/u;
+
+// <currency><number> or <number><currency>, anywhere in a run of text.
+function buildPriceRegExp() {
+  const escape = (sym) => sym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const symbols = Object.keys(SYMBOL_TO_CODE).sort((a, b) => b.length - a.length);
+  const fenced = symbols.filter((sym) => SPACED_SCRIPT.test(sym)).map(escape);
+  const bare = symbols.filter((sym) => !SPACED_SCRIPT.test(sym)).map(escape);
+
+  // Longest first within each group, and the fenced group first overall, so
+  // "R$" wins over "$" and "US$" over "$".
+  const cur =
+    `(?:(?<![\\p{L}])(?:${fenced.join("|")}|[A-Z]{3})(?![\\p{L}])` +
+    `|(?:${bare.join("|")}))`;
+
+  return new RegExp(`(${cur})\\s?(${NUMBER})|(${NUMBER})\\s?(${cur})`, "gu");
+}
+
+// Which currency a matched token means. `context` carries what only the page
+// knows: its own currency, the user's "$" setting, and a test for codes we
+// hold a rate for. Returns null when the token cannot be pinned down — the
+// caller then leaves the price alone.
+function resolveSymbol(token, context) {
+  if (!token) return null;
+  const code = SYMBOL_TO_CODE[token];
+  if (!code) return context.isKnownCode(token);
+
+  const options = AMBIGUOUS_SYMBOLS[token];
+  if (!options) return code;
+
+  // The "$" setting is a manual override; on "auto" it defers to the page like
+  // every other ambiguous symbol.
+  if (token === "$" && context.dollarAssumption !== "auto") {
+    return context.dollarAssumption;
+  }
+  return options.includes(context.pageCurrency) ? context.pageCurrency : null;
+}
+
 // Turns a localized number string into a Number, guessing the decimal
 // separator from context. Returns null when it cannot be parsed.
 function parseAmount(raw) {
@@ -342,6 +416,8 @@ if (typeof self !== "undefined") {
     DOLLAR_CURRENCIES,
     AMBIGUOUS_SYMBOLS,
     NUMBER,
+    buildPriceRegExp,
+    resolveSymbol,
     parseAmount,
     formatConverted,
     currencyFromHostname,

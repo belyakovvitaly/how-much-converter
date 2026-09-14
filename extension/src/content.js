@@ -10,9 +10,8 @@
 
 (function () {
   const {
-    SYMBOL_TO_CODE,
-    AMBIGUOUS_SYMBOLS,
-    NUMBER,
+    buildPriceRegExp,
+    resolveSymbol,
     parseAmount,
     formatConverted,
     detectPageCurrency,
@@ -33,21 +32,7 @@
   let observer = null;
   let pageCurrency = null; // what "$" or "¥" means *here*; null = unknown
 
-  // Currency alternation: every known symbol (longest first, so "R$" wins over
-  // "$") plus any three-letter ISO code, fenced by letters on both sides so a
-  // token cannot be a slice of a longer word. Without the lookahead, "руб"
-  // matches inside "рубанок" and "USD" inside "USDT"; without the lookbehind,
-  // "BURGERBIF 2 un." reads as 2 Burundian francs.
-  const CUR = `(?<![\\p{L}])(?:${Object.keys(SYMBOL_TO_CODE)
-    .sort((a, b) => b.length - a.length)
-    .map((sym) => sym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|")}|[A-Z]{3})(?![\\p{L}])`;
-
-  // <currency><number> or <number><currency>, anywhere in a run of text.
-  const RE = new RegExp(
-    `(${CUR})\\s?(${NUMBER})|(${NUMBER})\\s?(${CUR})`,
-    "gu"
-  );
+  const RE = buildPriceRegExp();
 
   // An ISO code, but only one we hold a rate for: "USD" is a currency here,
   // "EUR" is, "SKU" is not.
@@ -57,19 +42,11 @@
   }
 
   function resolveCode(token) {
-    if (!token) return null;
-    const code = SYMBOL_TO_CODE[token];
-    if (code) {
-      const options = AMBIGUOUS_SYMBOLS[token];
-      if (!options) return code;
-      // The "$" setting is a manual override; on "auto" it defers to the page
-      // like every other ambiguous symbol.
-      if (token === "$" && settings.dollarAssumption !== "auto") {
-        return settings.dollarAssumption;
-      }
-      return options.includes(pageCurrency) ? pageCurrency : null;
-    }
-    return knownCode(token);
+    return resolveSymbol(token, {
+      pageCurrency,
+      dollarAssumption: settings.dollarAssumption,
+      isKnownCode: knownCode,
+    });
   }
 
   function conversionNode(converted) {
