@@ -15,7 +15,8 @@
     parseAmount,
     formatConverted,
     detectPageCurrency,
-    matchIsVisible,
+    collapsePriceText,
+    matchIsOnOneLine,
   } = self.HMC;
 
   const WRAP_CLASS = "hmc-wrap";
@@ -154,11 +155,10 @@
       // Taken by a descendant in this pass, or annotated by the first one.
       if (claimed.has(el) || el.querySelector(`.${CONV_CLASS}`)) continue;
 
-      const raw = el.textContent;
       // Cheap bound first: markup indentation inflates textContent, so the real
       // cap has to be measured after collapsing whitespace, not before.
-      if (raw.length > SPLIT_MAX_RAW_TEXT) continue;
-      const text = raw.replace(/\s+/gu, " ").trim();
+      if (el.textContent.length > SPLIT_MAX_RAW_TEXT) continue;
+      const { text, map } = collapsePriceText(el);
       if (text.length > SPLIT_MAX_TEXT) continue;
 
       // Exactly one price, or we cannot say which the appended value refers to.
@@ -166,9 +166,11 @@
       if (matches.length !== 1) continue;
 
       const [match] = matches;
-      // ...and one the reader can actually see as a price, rather than two
-      // neighbouring elements that textContent ran together.
-      if (!matchIsVisible(el, match[0])) continue;
+      // ...and drawn as one unbroken run, rather than two neighbouring
+      // elements that textContent ran together.
+      if (!matchIsOnOneLine(map, match.index, match.index + match[0].length)) {
+        continue;
+      }
 
       const amount = parseAmount(match[2] || match[3]);
       const converted =

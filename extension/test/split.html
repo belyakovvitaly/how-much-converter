@@ -12,6 +12,15 @@
       #stage { position: absolute; left: -9999px; top: 0; width: 320px; }
       #stage .block { display: block; }
       #stage .hidden { display: none; }
+      /* How MercadoLibre builds a price: block children drawn side by side. */
+      #stage .flex { display: inline-flex; }
+      #stage .flex > span { display: block; }
+      /* How IKEA builds a filter row: label and count pushed to either end. */
+      #stage .row { display: flex; justify-content: space-between; width: 300px; }
+      /* A screen-reader duplicate: in the text, but not on the screen. */
+      #stage .sr { position: absolute; width: 1px; height: 1px; overflow: hidden;
+        clip-path: inset(50%); white-space: nowrap; }
+      #stage .gone { display: none; }
     </style>
   </head>
   <body>
@@ -30,6 +39,7 @@
         const stage = document.getElementById("stage");
 
         // [name, html, expected: is the single match a real, visible price?]
+        // [name, html, expected: is this element drawn as a single line?]
         const cases = [
           ["split across inline spans (stock.com.py)",
             '<span><span>Gs&nbsp;</span><span>&nbsp;23.000</span></span>', true],
@@ -39,30 +49,39 @@
             '<span>334 <span><span>руб</span></span>/шт</span>', true],
           ["number then currency, inline",
             '<span><span>4 990</span><span> kr</span></span>', true],
-          ["block neighbours run together (ikea.com/se)",
+          ["block children of a flex row (mercadolibre.com.ar)",
+            '<span class="flex"><span>$</span><span>399.999</span></span>', true],
+          ["flex row, symbol a size larger than the digits",
+            '<span class="flex"><span style="font-size:20px">$</span><span style="font-size:13px">399.999</span></span>', true],
+          ["filter row, label and count at either end (ikea.com/se)",
+            '<div class="row"><span>4 000+ kr</span><span>126 produkter</span></div>', false],
+          ["the same pair stacked into two lines",
             '<div><span class="block">4 000+ kr</span><span class="block">126 produkter</span></div>', false],
+          ["the count beside the label is a screen-reader copy (ikea.com/se)",
+            '<div class="row"><span>4 000+ kr</span><span class="sr">126 produkter</span><span>126</span></div>', false],
           ["token ends a block, number starts the next",
             '<div><div class="block">Ár Ft</div><div class="block">2373 termék</div></div>', false],
-          ["whole price in one block, count in the next",
-            '<div><div class="block">399 990 Ft</div><div class="block">2373 termék</div></div>', true],
-          ["a real price next to a block count",
+          ["a whole price in one block, a count in the next",
             '<div><span class="block">57.249 TL</span><span class="block">10 yorum</span></div>', true],
-          ["not rendered at all, so no opinion",
-            '<div class="hidden"><span>Gs</span><span>23.000</span></div>', true],
+          ["not rendered at all: nothing to see, so nothing to annotate",
+            '<div class="hidden"><span>Gs</span><span>23.000</span></div>', false],
         ];
 
         let fail = 0;
         const lines = cases.map(([name, html, want]) => {
           stage.innerHTML = html;
           const el = stage.firstElementChild;
-          const text = el.textContent.replace(/\s+/gu, " ").trim();
+          const { text, map } = H.collapsePriceText(el);
           RE.lastIndex = 0;
           const matches = [...text.matchAll(RE)];
-          const matched = matches.length === 1 ? matches[0][0] : null;
-          const got = matched === null ? null : H.matchIsVisible(el, matched);
+          const matched = matches.length === 1 ? matches[0] : null;
+          const got =
+            matched === null
+              ? null
+              : H.matchIsOnOneLine(map, matched.index, matched.index + matched[0].length);
           const ok = got === want;
           if (!ok) fail++;
-          const shown = matched === null ? "(no single match)" : JSON.stringify(matched);
+          const shown = matched === null ? "(no single match)" : JSON.stringify(matched[0]);
           return `${ok ? "ok  " : "FAIL"}  ${name.padEnd(44, " ")} ${shown.padEnd(14)} -> ${got}` +
             (ok ? "" : `   (expected ${want})`);
         });

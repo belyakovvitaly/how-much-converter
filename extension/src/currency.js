@@ -329,17 +329,104 @@ function currencyFromMarkup(doc, isKnownCode) {
 
 // textContent runs adjacent elements together, so a token ending one element
 // and a number starting the next read as a single price: IKEA's "4 000+ kr"
-// filter sitting next to a "126 produkter" count becomes "kr126". innerText is
-// what the page actually shows — with the line breaks the layout puts in — so
-// a match that survives there is one a reader would see as one price too.
+// filter sitting next to a "126 produkter" count becomes "kr126".
 //
-// Costly enough (it forces layout) to be worth calling only on a text that has
-// already matched, and only while nothing is being written to the page.
-function matchIsVisible(el, matched) {
-  const shown = el.innerText;
-  // An element outside the layout has no innerText of its own to disagree with.
-  if (!shown) return true;
-  return shown.replace(/\s+/gu, " ").trim().includes(matched);
+// What separates that from a genuine split price — <span>Gs</span><span>23.000
+// </span> — is not the tree, which has the same shape either way. It is that
+// the halves of a real price are drawn touching, and these two are drawn at
+// opposite ends of a filter row. So measure the seam.
+//
+// Two earlier attempts are worth recording, because both look right and are
+// not. innerText reports a line break between block-level children, and a flex
+// row is full of those — MercadoLibre builds a price out of two display:block
+// spans drawn side by side, and innerText calls them two lines. Measuring the
+// element as a whole fails the other way: a Range over a whole line of inline
+// content returns one rectangle covering all of it, gap and all.
+//
+// So the measurement has to be of the match itself, which means being able to
+// point at it in the DOM — hence the map below.
+
+// Collapses whitespace the way the scan does, while keeping, for every
+// character of the result, the node and offset it came from.
+function collapsePriceText(el) {
+  const map = [];
+  let text = "";
+  let pendingSpace = false;
+
+  const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const value = node.nodeValue;
+    for (let i = 0; i < value.length; i++) {
+      if (/\s/u.test(value[i])) {
+        // Leading whitespace is dropped, and a run of it becomes one space —
+        // but only once something follows it, which is what trims the tail.
+        pendingSpace = text.length > 0;
+        continue;
+      }
+      if (pendingSpace) {
+        text += " ";
+        map.push({ node, offset: i });
+        pendingSpace = false;
+      }
+      text += value[i];
+      map.push({ node, offset: i });
+    }
+  }
+  return { text, map };
+}
+
+// Is the matched run drawn as one unbroken piece of a line? Its pieces must
+// share a line and touch: a space between them is fine, the width of a filter
+// row is not.
+function matchIsOnOneLine(map, start, end) {
+  // Group the matched characters by the text node they came from and measure
+  // each run separately. A Range spanning two nodes is no good here: it reports
+  // one rectangle for the whole line, the gap inside it included, which is the
+  // very thing being looked for.
+  const runs = [];
+  for (let i = start; i < end; i++) {
+    const at = map[i];
+    if (!at) continue;
+    const last = runs[runs.length - 1];
+    if (last && last.node === at.node) last.to = at.offset + 1;
+    else runs.push({ node: at.node, from: at.offset, to: at.offset + 1 });
+  }
+  // All in one text node: nothing was run together, and the first pass has it.
+  if (runs.length < 2) return true;
+
+  const rects = runs.map((run) => {
+    const range = run.node.ownerDocument.createRange();
+    range.setStart(run.node, run.from);
+    range.setEnd(run.node, run.to);
+    return range.getBoundingClientRect();
+  });
+  // A box no bigger than a pixel is not text anyone can read. That covers an
+  // element that is not laid out at all (0×0) and, at 1×1, the standard
+  // screen-reader-only recipe — width and height of 1px with overflow hidden —
+  // which is exactly what IKEA's filter rows use: a hidden "28 produkter"
+  // beside the visible count, and it is that hidden copy the "kr" of the label
+  // runs into. A price with a piece nobody can see is not a price.
+  if (rects.some((r) => r.width <= 1 || r.height <= 1)) return false;
+
+  const tallest = Math.max(...rects.map((r) => r.height));
+  const centres = rects.map((r) => r.top + r.height / 2);
+  // Centres rather than tops: a currency symbol is often set in a different
+  // size from the digits beside it and sits a pixel or two off on the very
+  // same line. Two lines are a whole line-height apart.
+  if (Math.max(...centres) - Math.min(...centres) > tallest * 0.75) return false;
+
+  const ordered = [...rects].sort((a, b) => a.left - b.left);
+  let widest = 0;
+  for (let i = 1; i < ordered.length; i++) {
+    widest = Math.max(widest, ordered[i].left - ordered[i - 1].right);
+  }
+  // Measured against the pages this was built from, as a fraction of the line
+  // height: a price whose halves touch scores 0.00, one separated by a space
+  // 0.51, and stock.com.py's two non-breaking spaces 1.02 — while IKEA's filter
+  // label and its count, the case this exists to reject, score 6.94. Anywhere
+  // in between separates them; 1.5 leaves room on the side of the real prices.
+  return widest <= tallest * 1.5;
 }
 
 function detectPageCurrency(doc, loc, isKnownCode) {
@@ -483,6 +570,7 @@ if (typeof self !== "undefined") {
     currencyFromLang,
     currencyFromMarkup,
     detectPageCurrency,
-    matchIsVisible,
+    collapsePriceText,
+    matchIsOnOneLine,
   };
 }
