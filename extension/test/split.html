@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>How Much? — split prices vs. run-together neighbours</title>
+    <style>
+      body { font: 14px/1.5 ui-monospace, monospace; max-width: 64em; margin: 2em auto; }
+      .fail { color: #b00; font-weight: bold; }
+      h1 { font-family: system-ui, sans-serif; }
+      #summary { font-size: 1.2em; margin-top: 1em; }
+      /* The cases are laid out for real: matchIsVisible asks the layout. */
+      #stage { position: absolute; left: -9999px; top: 0; width: 320px; }
+      #stage .block { display: block; }
+      #stage .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <h1>Split prices vs. run-together neighbours</h1>
+    <p>Every line should say "ok". The cases are laid out off-screen, not hidden,
+      so the layout is real.</p>
+    <pre id="out">running…</pre>
+    <div id="summary"></div>
+    <div id="stage"></div>
+
+    <script src="../src/currency.js"></script>
+    <script>
+      (function () {
+        const H = self.HMC;
+        const RE = H.buildPriceRegExp();
+        const stage = document.getElementById("stage");
+
+        // [name, html, expected: is the single match a real, visible price?]
+        const cases = [
+          ["split across inline spans (stock.com.py)",
+            '<span><span>Gs&nbsp;</span><span>&nbsp;23.000</span></span>', true],
+          ["split across inline spans (geant.com.uy)",
+            '<span><span>$</span><span>145</span></span>', true],
+          ["currency in a nested span (vkusvill.ru)",
+            '<span>334 <span><span>руб</span></span>/шт</span>', true],
+          ["number then currency, inline",
+            '<span><span>4 990</span><span> kr</span></span>', true],
+          ["block neighbours run together (ikea.com/se)",
+            '<div><span class="block">4 000+ kr</span><span class="block">126 produkter</span></div>', false],
+          ["token ends a block, number starts the next",
+            '<div><div class="block">Ár Ft</div><div class="block">2373 termék</div></div>', false],
+          ["whole price in one block, count in the next",
+            '<div><div class="block">399 990 Ft</div><div class="block">2373 termék</div></div>', true],
+          ["a real price next to a block count",
+            '<div><span class="block">57.249 TL</span><span class="block">10 yorum</span></div>', true],
+          ["not rendered at all, so no opinion",
+            '<div class="hidden"><span>Gs</span><span>23.000</span></div>', true],
+        ];
+
+        let fail = 0;
+        const lines = cases.map(([name, html, want]) => {
+          stage.innerHTML = html;
+          const el = stage.firstElementChild;
+          const text = el.textContent.replace(/\s+/gu, " ").trim();
+          RE.lastIndex = 0;
+          const matches = [...text.matchAll(RE)];
+          const matched = matches.length === 1 ? matches[0][0] : null;
+          const got = matched === null ? null : H.matchIsVisible(el, matched);
+          const ok = got === want;
+          if (!ok) fail++;
+          const shown = matched === null ? "(no single match)" : JSON.stringify(matched);
+          return `${ok ? "ok  " : "FAIL"}  ${name.padEnd(44, " ")} ${shown.padEnd(14)} -> ${got}` +
+            (ok ? "" : `   (expected ${want})`);
+        });
+
+        stage.innerHTML = "";
+        document.getElementById("out").textContent = lines.join("\n");
+        const summary = document.getElementById("summary");
+        summary.textContent = `${cases.length - fail} ok, ${fail} fail`;
+        if (fail) summary.className = "fail";
+      })();
+    </script>
+  </body>
+</html>

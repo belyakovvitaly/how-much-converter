@@ -294,6 +294,21 @@ function currencyFromMarkup(doc, isKnownCode) {
   return null;
 }
 
+// textContent runs adjacent elements together, so a token ending one element
+// and a number starting the next read as a single price: IKEA's "4 000+ kr"
+// filter sitting next to a "126 produkter" count becomes "kr126". innerText is
+// what the page actually shows — with the line breaks the layout puts in — so
+// a match that survives there is one a reader would see as one price too.
+//
+// Costly enough (it forces layout) to be worth calling only on a text that has
+// already matched, and only while nothing is being written to the page.
+function matchIsVisible(el, matched) {
+  const shown = el.innerText;
+  // An element outside the layout has no innerText of its own to disagree with.
+  if (!shown) return true;
+  return shown.replace(/\s+/gu, " ").trim().includes(matched);
+}
+
 function detectPageCurrency(doc, loc, isKnownCode) {
   return (
     currencyFromMarkup(doc, isKnownCode) ||
@@ -424,5 +439,6 @@ if (typeof self !== "undefined") {
     currencyFromLang,
     currencyFromMarkup,
     detectPageCurrency,
+    matchIsVisible,
   };
 }
