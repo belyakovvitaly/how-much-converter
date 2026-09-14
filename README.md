@@ -91,6 +91,10 @@ also means it does not follow you to another machine.
 - Per-site currency overrides.
 - Hover tooltip with the rate and fetch time instead of inline text.
 - Offline fallback bundle of rates.
+- A phone version that reads prices off a photo or the camera instead of the
+  DOM. [`tools/ocr-bench`](tools/ocr-bench) measures which OCR engines are good
+  enough to build it on, scoring them through the detection rules in
+  `src/currency.js` rather than on raw text accuracy.
 
 ## Privacy
 

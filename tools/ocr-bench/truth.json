@@ -1,0 +1,100 @@
+[
+  {
+    "id": "01-price-tag",
+    "note": "Shop price tag, large type",
+    "truth": [
+      "1 299 ₽"
+    ]
+  },
+  {
+    "id": "02-shop-list",
+    "note": "Product list at UI type sizes",
+    "truth": [
+      "12 490 руб.",
+      "899 руб.",
+      "1 250 ₽",
+      "2 199,90 ₽"
+    ]
+  },
+  {
+    "id": "03-marketplace",
+    "note": "Marketplace: struck-through old price, large new one",
+    "truth": [
+      "2 490 ₽",
+      "1 299 ₽",
+      "217 ₽"
+    ]
+  },
+  {
+    "id": "04-uah",
+    "note": "Hryvnia, as a symbol and spelled out",
+    "truth": [
+      "450 грн",
+      "₴1 200,50"
+    ]
+  },
+  {
+    "id": "05-kzt",
+    "note": "Tenge, as a symbol and spelled out",
+    "truth": [
+      "15 900 ₸",
+      "4 500 тг"
+    ]
+  },
+  {
+    "id": "06-prose",
+    "note": "Currency spelled out inside a sentence",
+    "truth": [
+      "2 500 рублей",
+      "10 000 рублей",
+      "1 200 руб."
+    ]
+  },
+  {
+    "id": "07-mixed",
+    "note": "Cyrillic and Latin on one line",
+    "truth": [
+      "99 USD",
+      "9 900 ₽",
+      "15 €",
+      "1 500 руб."
+    ]
+  },
+  {
+    "id": "08-receipt",
+    "note": "Till receipt, monospaced",
+    "truth": [
+      "1 234,56 руб."
+    ]
+  },
+  {
+    "id": "09-camera-blur",
+    "note": "Camera: slight defocus, tilt, warm light",
+    "truth": [
+      "3 490 ₽"
+    ]
+  },
+  {
+    "id": "10-camera-angle",
+    "note": "Camera: shot at an angle, with shadow",
+    "truth": [
+      "799 руб."
+    ]
+  },
+  {
+    "id": "11-camera-lowlight",
+    "note": "Camera: low light and low contrast",
+    "truth": [
+      "1 899 ₽"
+    ]
+  },
+  {
+    "id": "12-camera-menu",
+    "note": "Camera: cafe menu, serif face, small type",
+    "truth": [
+      "180 ₽",
+      "290 ₽",
+      "450 руб."
+    ]
+  }
+]

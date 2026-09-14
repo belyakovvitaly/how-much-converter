@@ -11,3 +11,9 @@ dist/
 
 # Screenshot harness
 .screenshot-tmp/
+
+# OCR benchmark: generated pages, engine output, build products
+tools/ocr-bench/html/
+tools/ocr-bench/out/
+tools/ocr-bench/.build/
+tools/ocr-bench/.chrome-*/
