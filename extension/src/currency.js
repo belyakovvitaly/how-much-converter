@@ -70,6 +70,8 @@ const SYMBOL_TO_CODE = {
   "원": "KRW",
   "บาท": "THB",
   // Ambiguous, and so only resolved when the page says which country it is.
+  "R": "ZAR",
+  "元": "CNY",
   "kr": "SEK",
   "lei": "RON",
   "Rs.": "INR",
@@ -173,6 +175,28 @@ const AMBIGUOUS_SYMBOLS = {
   lei: ["RON"],
   Rs: ["INR"],
   "Rs.": ["INR"],
+  R: ["ZAR"],
+  元: ["CNY", "TWD"],
+};
+
+// Two tokens are too common in ordinary text to be matched on their own, and
+// what saves them is not the same thing, so each gets its own pattern here in
+// place of the plain escaped literal. These are regex source, not literals:
+// nothing escapes them.
+const TOKEN_PATTERNS = {
+  // 元 opens a great many ordinary Chinese words — 元旦, 元月, 元素 — and closes
+  // as many others — 单元, 纪元. A price neither continues into another Han
+  // character nor follows one, so refuse on either side. Fencing both ends
+  // matters: without the lookbehind the 元 of 单元 pairs with the number after
+  // it and "单元 3 元素" reads as 3 yuan. The cost is "5999元起" ("from 5999"),
+  // which is the price of not reading 2026元旦 as 2026 yuan.
+  元: "(?<![\\p{Script=Han}])元(?![\\p{Script=Han}])",
+  // R is a lone capital letter sitting where a tyre size ("205/55 R16"), a
+  // model number or a year could be. Requiring the number to be shaped like a
+  // price — grouped thousands, two decimals, or three digits and up — leaves
+  // R16 and R5 alone. It also gives up prices under R100, which is the side to
+  // err on: a missed conversion is an inconvenience, a wrong one is a lie.
+  R: "R(?=\\s?(?:\\d{1,3}[.,\u00a0\u202f ]\\d{3}|\\d+[.,]\\d{2}|\\d{3,}))",
 };
 
 // Country (a ccTLD, or the region subtag of a lang attribute) to the currency
@@ -331,10 +355,11 @@ const SPACED_SCRIPT = /[\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Greek}]/u;
 
 // <currency><number> or <number><currency>, anywhere in a run of text.
 function buildPriceRegExp() {
-  const escape = (sym) => sym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = (sym) =>
+    TOKEN_PATTERNS[sym] ?? sym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const symbols = Object.keys(SYMBOL_TO_CODE).sort((a, b) => b.length - a.length);
-  const fenced = symbols.filter((sym) => SPACED_SCRIPT.test(sym)).map(escape);
-  const bare = symbols.filter((sym) => !SPACED_SCRIPT.test(sym)).map(escape);
+  const fenced = symbols.filter((sym) => SPACED_SCRIPT.test(sym)).map(pattern);
+  const bare = symbols.filter((sym) => !SPACED_SCRIPT.test(sym)).map(pattern);
 
   // Longest first within each group, and the fenced group first overall, so
   // "R$" wins over "$" and "US$" over "$".
