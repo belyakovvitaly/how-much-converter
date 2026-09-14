@@ -132,13 +132,15 @@ const DOLLAR_CURRENCIES = [
   },
 ];
 
-// Number token: 1 234 567,89 / 1,234,567.89 / 1234.5 / 1234
-const NUMBER = String.raw`\d{1,3}(?:[.,   ]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?`;
+// Number token: 1 234 567,89 / 1,234,567.89 / 1'234'567.89 / 1234.5 / 1234
+// The apostrophes are Switzerland's thousands separator, in both the typographic
+// and the typewriter spelling; a shop picks one or the other.
+const NUMBER = String.raw`\d{1,3}(?:[.,   '’]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?`;
 
 // Turns a localized number string into a Number, guessing the decimal
 // separator from context. Returns null when it cannot be parsed.
 function parseAmount(raw) {
-  let s = String(raw).replace(/[  \s]/g, "");
+  let s = String(raw).replace(/[  \s'’]/g, "");
   const hasComma = s.includes(",");
   const hasDot = s.includes(".");
 
