@@ -2,10 +2,11 @@
 # Regenerates docs/screenshot-*.png at the 1280x800 the Chrome Web Store wants.
 #
 # Headless Chrome cannot load an unpacked extension and drive its popup, so the
-# harness runs the real src/currency.js and src/content.js against test/demo.html
-# with chrome.* stubbed and a fixed rate table — the same code paths the packed
-# extension takes, minus the parts headless will not do. The popup shot renders
-# the real src/popup.html in an iframe over the page.
+# harness runs the real extension/src/currency.js and extension/src/content.js
+# against extension/test/demo.html with chrome.* stubbed and a fixed rate table
+# — the same code paths the packed extension takes, minus the parts headless
+# will not do. The popup shot renders the real extension/src/popup.html in an
+# iframe over the page.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -31,10 +32,10 @@ STUB='<script>
 python3 - "$TMP" "$STUB" <<'PY'
 import sys, pathlib
 tmp, stub = pathlib.Path(sys.argv[1]), sys.argv[2]
-demo = pathlib.Path("test/demo.html").read_text(encoding="utf-8")
+demo = pathlib.Path("extension/test/demo.html").read_text(encoding="utf-8")
 inline = demo.replace("  </body>", f'''    {stub}
-    <script src="/src/currency.js"></script>
-    <script src="/src/content.js"></script>
+    <script src="/extension/src/currency.js"></script>
+    <script src="/extension/src/content.js"></script>
   </body>''')
 (tmp / "inline.html").write_text(inline, encoding="utf-8")
 (tmp / "popup.html").write_text(inline.replace("  </body>", '''    <style>
@@ -44,16 +45,16 @@ inline = demo.replace("  </body>", f'''    {stub}
     </style>
     <iframe id="shot-popup" src="/.screenshot-tmp/popup-inner.html"></iframe>
   </body>'''), encoding="utf-8")
-popup = pathlib.Path("src/popup.html").read_text(encoding="utf-8")
+popup = pathlib.Path("extension/src/popup.html").read_text(encoding="utf-8")
 (tmp / "popup-inner.html").write_text(
-    popup.replace('href="popup.css"', 'href="/src/popup.css"')
-         .replace('<script src="currency.js">', stub + '\n    <script src="/src/currency.js">')
-         .replace('<script src="popup.js">', '<script src="/src/popup.js">'), encoding="utf-8")
+    popup.replace('href="popup.css"', 'href="/extension/src/popup.css"')
+         .replace('<script src="currency.js">', stub + '\n    <script src="/extension/src/currency.js">')
+         .replace('<script src="popup.js">', '<script src="/extension/src/popup.js">'), encoding="utf-8")
 PY
 
 python3 -m http.server "$PORT" --bind 127.0.0.1 >/dev/null 2>&1 &
 SERVER=$!
-until curl -sf "http://127.0.0.1:$PORT/manifest.json" >/dev/null; do sleep 0.2; done
+until curl -sf "http://127.0.0.1:$PORT/extension/manifest.json" >/dev/null; do sleep 0.2; done
 
 for name in inline popup; do
   raw="$TMP/$name.png"

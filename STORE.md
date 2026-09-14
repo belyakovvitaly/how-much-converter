@@ -5,7 +5,7 @@ resubmission after a rejection) is copy-paste rather than improvisation.
 
 Build the upload with `./tools/build.sh` — it writes `dist/how-much-<version>.zip`
 with `manifest.json` at the archive root, which is what the store expects.
-Bump `"version"` in `manifest.json` before every upload; the store refuses a
+Bump `"version"` in `extension/manifest.json` before every upload; the store refuses a
 version it has already seen.
 
 ## Walkthrough
@@ -117,6 +117,6 @@ prepared in this file.
   [`docs/screenshot-inline.png`](docs/screenshot-inline.png) (conversions on a
   page) and [`docs/screenshot-popup.png`](docs/screenshot-popup.png) (the
   popup). Regenerate with `./tools/screenshots.sh`.
-- **Icon** — the 128×128 the listing needs is in `icons/`.
+- **Icon** — the 128×128 the listing needs is in `extension/icons/`.
 - **Small promo tile** — 440×280 PNG, still missing. Optional, and only needed
   to be eligible for store promotion.

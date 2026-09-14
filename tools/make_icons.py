@@ -11,7 +11,7 @@ import os
 import struct
 import zlib
 
-OUT_DIR = os.path.join(os.path.dirname(__file__), os.pardir, "icons")
+OUT_DIR = os.path.join(os.path.dirname(__file__), os.pardir, "extension", "icons")
 
 BG = (45, 125, 70)       # green
 RING = (255, 255, 255)   # white

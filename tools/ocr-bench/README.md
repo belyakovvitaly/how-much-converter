@@ -6,9 +6,10 @@ instead of off the DOM.
 
 The question it answers is not "did the engine read the text" but **would the
 extension's own price rules have produced the right conversion**. So the
-recognized text is run through [`../../src/currency.js`](../../src/currency.js)'s
-symbol table, number grammar and `parseAmount`, and a price counts only when
-the amount *and* the currency both come out right.
+recognized text is run through the symbol table, number grammar and
+`parseAmount` of [`extension/src/currency.js`](../../extension/src/currency.js),
+and a price counts only when the amount *and* the currency both come out
+right.
 
 Wrong answers get their own column and are never netted against hits. For a
 currency converter a confidently wrong price is worse than no price: a missed
@@ -88,11 +89,11 @@ RUB would convert English prose.
 **Box merge.** The detector splits a large price across boxes: in the price tag
 `'1299'` lands at x389–726 and `'P'` at x724–810, touching, on one line. This is
 the same problem as the second pass in
-[`../../src/content.js`](../../src/content.js), where a price is split across
-sibling elements — only the measure of adjacency changes, from DOM structure to
-geometry. Rows have to be clustered before anything is ordered left to right;
-sorting by y first lets a right-hand fragment open the group and strand the
-digits to its left, which turned `1 299` into `299`.
+[`extension/src/content.js`](../../extension/src/content.js), where a price is
+split across sibling elements — only the measure of adjacency changes, from DOM
+structure to geometry. Rows have to be clustered before anything is ordered
+left to right; sorting by y first lets a right-hand fragment open the group and
+strand the digits to its left, which turned `1 299` into `299`.
 
 **The one dangerous failure class.** A prefix symbol can be read as a digit and
 fuse with the number: `₴1 200,50` comes back as `21 200,50`. Today that is
@@ -112,7 +113,7 @@ lookalikes (`руб.` → `py6.`, `грн` → `rpH`) while corrupting digits (`
 ## Keeping it honest
 
 `bench.py` parses the symbol table and number grammar straight out of
-`currency.js` instead of copying them, so the two cannot drift. `parseAmount`
-is a hand port and is pinned by `PARSE_CHECKS`, which runs before any score is
-printed — a drifted port fails loudly rather than quietly scoring against rules
-the extension no longer uses.
+`extension/src/currency.js` instead of copying them, so the two cannot drift.
+`parseAmount` is a hand port and is pinned by `PARSE_CHECKS`, which runs before
+any score is printed — a drifted port fails loudly rather than quietly scoring
+against rules the extension no longer uses.

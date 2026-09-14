@@ -25,12 +25,12 @@ import re
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-CURRENCY_JS = HERE.parent.parent / "src" / "currency.js"
+CURRENCY_JS = HERE.parent.parent / "extension" / "src" / "currency.js"
 
 
 # --- the extension's own rules ----------------------------------------------
 def load_symbol_table():
-    """Reads SYMBOL_TO_CODE and NUMBER out of src/currency.js.
+    """Reads SYMBOL_TO_CODE and NUMBER out of extension/src/currency.js.
 
     Parsed rather than copied so the benchmark cannot quietly drift from the
     table the extension actually ships.
@@ -58,7 +58,7 @@ for _code in set(SYMBOL_TO_CODE.values()):
 
 
 def parse_amount(raw):
-    """Hand port of parseAmount() in src/currency.js.
+    """Hand port of parseAmount() in extension/src/currency.js.
 
     Kept in sync by PARSE_CHECKS below rather than by hope — run this file and
     a drifted port fails loudly before any score is printed.
@@ -229,13 +229,13 @@ def main():
     for raw, expected in PARSE_CHECKS:
         got = parse_amount(raw)
         if got != expected:
-            sys.exit(f"parse_amount drifted from src/currency.js: "
+            sys.exit(f"parse_amount drifted from extension/src/currency.js: "
                      f"{raw!r} -> {got!r}, expected {expected!r}")
 
     truth = json.loads((HERE / "truth.json").read_text(encoding="utf-8"))
     total = sum(len(c["truth"]) for c in truth)
     print(f"{total} prices across {len(truth)} images "
-          f"({len(SYMBOL_TO_CODE)} currency tokens from src/currency.js)\n")
+          f"({len(SYMBOL_TO_CODE)} currency tokens from extension/src/currency.js)\n")
 
     header = f"{'engine':<34} {'variant':<22} {'ok':>7} {'missed':>7} {'WRONG':>6}"
     print(header)
