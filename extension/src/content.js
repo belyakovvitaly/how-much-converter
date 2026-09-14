@@ -51,6 +51,15 @@
     });
   }
 
+  function convert(amount, fromCode) {
+    const to = settings.targetCurrency;
+    if (!fromCode || fromCode === to) return null;
+    const from = rates.rates[fromCode];
+    const dest = rates.rates[to];
+    if (!from || !dest) return null;
+    return (amount / from) * dest;
+  }
+
   function conversionNode(converted) {
     const conv = document.createElement("span");
     conv.className = CONV_CLASS;

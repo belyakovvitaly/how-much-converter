@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="utf-8" />
+    <title>How Much? — the whole content script, end to end</title>
+    <script type="application/ld+json">
+      {"@type": "Offer", "priceCurrency": "ARS", "price": "399999"}
+    </script>
+    <style>
+      body { font: 14px/1.5 ui-monospace, monospace; max-width: 64em; margin: 2em auto; }
+      .fail { color: #b00; font-weight: bold; }
+      h1 { font-family: system-ui, sans-serif; }
+      #summary { font-size: 1.2em; margin-top: 1em; }
+      /* Off-screen, but laid out for real: the geometry check needs a layout. */
+      #page { position: absolute; left: -9999px; top: 0; width: 360px; }
+      #page .money { display: inline-flex; }
+      #page .money > span { display: block; }
+      #page .row { display: flex; justify-content: space-between; width: 320px; }
+      #page .sr { position: absolute; width: 1px; height: 1px; overflow: hidden;
+        clip-path: inset(50%); white-space: nowrap; }
+    </style>
+  </head>
+  <body>
+    <h1>The whole content script, end to end</h1>
+    <p>Runs <code>content.js</code> itself against a mocked extension API, then
+      checks what it actually did to the page. Every line should say "ok".</p>
+    <pre id="out">running…</pre>
+    <div id="summary"></div>
+
+    <!-- The page the content script will work on. -->
+    <div id="page">
+      <p id="plain">Precio: $ 1.234</p>
+      <p id="flex">Antes: <span class="money"><span>$</span><span>399.999</span></span></p>
+      <p id="euro">Import price: €10,00</p>
+      <div class="row" id="filter"><span>4 000+ kr</span><span class="sr">126 produkter</span><span>126</span></div>
+      <p id="nothing">42 items in stock</p>
+      <p id="unknown">Code 500 USDT</p>
+    </div>
+
+    <script>
+      // Everything content.js needs from the extension API, and nothing else.
+      const RATES = { base: "USD", rates: { USD: 1, ARS: 1000, EUR: 0.9, SEK: 10 } };
+      window.chrome = {
+        storage: {
+          local: {
+            get: async () => ({ enabled: true, targetCurrency: "USD", dollarAssumption: "auto" }),
+          },
+          onChanged: { addListener() {} },
+        },
+        runtime: {
+          sendMessage: (msg, cb) => cb({ ok: true, cache: RATES }),
+          onMessage: { addListener() {} },
+        },
+      };
+    </script>
+    <script src="../src/currency.js"></script>
+    <script src="../src/content.js"></script>
+    <script>
+      (function () {
+        const conv = (id) => {
+          const el = document.getElementById(id);
+          const tag = el.querySelector(".hmc-conv");
+          return tag ? tag.textContent.trim() : null;
+        };
+
+        // [name, id, should it have been converted?]
+        const cases = [
+          ["a price in running text", "plain", true],
+          ["a flex-built price, the mercadolibre.com.ar shape", "flex", true],
+          ["an unambiguous symbol", "euro", true],
+          ["a filter label run into a hidden count (ikea.com/se)", "filter", false],
+          ["a number that is not a price", "nothing", false],
+          ["a ticker that is not a currency", "unknown", false],
+        ];
+
+        function report() {
+          let fail = 0;
+          const lines = cases.map(([name, id, want]) => {
+            const got = conv(id);
+            const ok = want === (got !== null);
+            if (!ok) fail++;
+            return `${ok ? "ok  " : "FAIL"}  ${name.padEnd(48, " ")} ${got === null ? "(not converted)" : got}` +
+              (ok ? "" : `   (expected ${want ? "a conversion" : "none"})`);
+          });
+          document.getElementById("out").textContent = lines.join("\n");
+          const summary = document.getElementById("summary");
+          summary.textContent = `${cases.length - fail} ok, ${fail} fail`;
+          if (fail) summary.className = "fail";
+        }
+
+        // An uncaught error in the content script is a failure in itself — the
+        // kind a syntax check cannot see, because the file parses fine and only
+        // falls over once it runs.
+        window.addEventListener("error", (e) => {
+          document.getElementById("out").textContent = `FAIL  content.js threw: ${e.message}`;
+          const s = document.getElementById("summary");
+          s.textContent = "0 ok, 1 fail";
+          s.className = "fail";
+        });
+        window.addEventListener("unhandledrejection", (e) => {
+          document.getElementById("out").textContent =
+            `FAIL  content.js threw: ${e.reason && e.reason.message ? e.reason.message : e.reason}`;
+          const s = document.getElementById("summary");
+          s.textContent = "0 ok, 1 fail";
+          s.className = "fail";
+        });
+
+        // content.js starts itself asynchronously; give it a turn or two.
+        setTimeout(report, 300);
+      })();
+    </script>
+  </body>
+</html>
