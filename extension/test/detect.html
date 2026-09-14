@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>How Much? — page currency detection</title>
+    <style>
+      body { font: 14px/1.5 ui-monospace, monospace; max-width: 60em; margin: 2em auto; }
+      .fail { color: #b00; font-weight: bold; }
+      h1 { font-family: system-ui, sans-serif; }
+      #summary { font-size: 1.2em; margin-top: 1em; }
+    </style>
+  </head>
+  <body>
+    <h1>Page currency detection</h1>
+    <p>Open over http:// — file:// works too. Every line should say "ok".</p>
+    <pre id="out">running…</pre>
+    <div id="summary"></div>
+
+    <script src="../src/currency.js"></script>
+    <script>
+      (function () {
+        const H = self.HMC;
+        // Stand-in for the content script's rate check: any code the extension
+        // knows a name for counts, anything else is not a currency.
+        const known = (v) => {
+          const up = String(v || "").trim().toUpperCase();
+          return /^[A-Z]{3}$/.test(up) && H.CURRENCY_NAMES[up] ? up : null;
+        };
+        const doc = (html) =>
+          new DOMParser().parseFromString(html, "text/html");
+        const ld = (json) =>
+          `<script type="application/ld+json">${json}<\/script>`;
+
+        const detect = (html, hostname, lang) => {
+          const d = doc(`<html lang="${lang || ""}"><head></head><body>${html}</body></html>`);
+          return H.detectPageCurrency(d, { hostname }, known);
+        };
+
+        const cases = [
+          // --- the page says so outright ---
+          ["JSON-LD, flat offer",
+            () => detect(ld('{"@type":"Offer","priceCurrency":"CNY","price":"99"}'), "example.com", "en"),
+            "CNY"],
+          ["JSON-LD, nested in a product",
+            () => detect(ld('{"@type":"Product","offers":{"@type":"Offer","priceCurrency":"THB"}}'), "example.com", "en"),
+            "THB"],
+          ["JSON-LD, inside @graph array",
+            () => detect(ld('{"@graph":[{"@type":"WebSite"},{"offers":[{"priceCurrency":"HUF"}]}]}'), "example.com", "en"),
+            "HUF"],
+          ["JSON-LD, malformed, falls through to the host",
+            () => detect(ld("{not json at all,,}"), "shop.com.pe", "en"),
+            "PEN"],
+          ["JSON-LD, priceCurrency that is not a currency",
+            () => detect(ld('{"priceCurrency":"SKU"}'), "shop.se", "en"),
+            "SEK"],
+          ["microdata itemprop",
+            () => detect('<meta itemprop="priceCurrency" content="VND">', "example.com", "en"),
+            "VND"],
+          ["itemprop with extra tokens in the attribute",
+            () => detect('<span itemprop="foo priceCurrency" content="IDR"></span>', "example.com", "en"),
+            "IDR"],
+          ["Open Graph product meta",
+            () => detect('<meta property="product:price:currency" content="NOK">', "example.com", "en"),
+            "NOK"],
+          ["markup beats the hostname",
+            () => detect(ld('{"priceCurrency":"CNY"}'), "shop.jp", "ja"),
+            "CNY"],
+
+          // --- inferred from the address ---
+          ["ccTLD under a second level", () => detect("", "falabella.com.pe", "es"), "PEN"],
+          ["ccTLD, Mexico", () => detect("", "www.liverpool.com.mx", "es"), "MXN"],
+          ["ccTLD, .co.uk", () => detect("", "www.argos.co.uk", "en"), "GBP"],
+          ["ccTLD, Switzerland", () => detect("", "www.digitec.ch", "de"), "CHF"],
+          ["ccTLD, Bulgaria is on the euro", () => detect("", "shop.bg", "bg"), "EUR"],
+          ["generic .com says nothing on its own", () => detect("", "takealot.com", "en"), null],
+
+          // --- inferred from the language ---
+          ["lang region beats the language", () => detect("", "takealot.com", "en-ZA"), "ZAR"],
+          ["lang region, script subtag in between", () => detect("", "shop.com", "zh-Hant-TW"), "TWD"],
+          ["lang region, simplified Chinese", () => detect("", "jd.com", "zh-Hans-CN"), "CNY"],
+          ["bare unambiguous language", () => detect("", "shop.com", "sv"), "SEK"],
+          ["bare Japanese", () => detect("", "shop.com", "ja"), "JPY"],
+          ["hostname beats the language", () => detect("", "shop.no", "sv"), "NOK"],
+          ["bare English says nothing", () => detect("", "shop.com", "en"), null],
+          ["bare Spanish says nothing", () => detect("", "shop.com", "es"), null],
+          ["bare German says nothing (DE/AT vs CH)", () => detect("", "shop.com", "de"), null],
+          ["no signals at all", () => detect("", "shop.com", ""), null],
+
+          // --- the pure helpers ---
+          ["currencyFromHostname, bare", () => H.currencyFromHostname("alza.cz"), "CZK"],
+          ["currencyFromHostname, unknown tld", () => H.currencyFromHostname("shop.io"), null],
+          ["currencyFromHostname, empty", () => H.currencyFromHostname(""), null],
+          ["currencyFromLang, uppercase region", () => H.currencyFromLang("EN-ZA"), "ZAR"],
+          ["currencyFromLang, empty", () => H.currencyFromLang(""), null],
+        ];
+
+        let fail = 0;
+        const lines = cases.map(([name, run, want]) => {
+          let got;
+          try { got = run(); } catch (e) { got = `threw ${e.message}`; }
+          const ok = got === want;
+          if (!ok) fail++;
+          const pad = name.padEnd(46, " ");
+          return `${ok ? "ok  " : "FAIL"}  ${pad} -> ${got}${ok ? "" : `   (expected ${want})`}`;
+        });
+
+        document.getElementById("out").textContent = lines.join("\n");
+        const summary = document.getElementById("summary");
+        summary.textContent = `${cases.length - fail} ok, ${fail} fail`;
+        if (fail) summary.className = "fail";
+      })();
+    </script>
+  </body>
+</html>

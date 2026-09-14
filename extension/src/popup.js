@@ -33,6 +33,11 @@
     els.target.appendChild(option(code));
   }
 
+  const auto = document.createElement("option");
+  auto.value = "auto";
+  auto.textContent = "Detect from the page";
+  els.dollar.appendChild(auto);
+
   for (const { label, codes } of DOLLAR_CURRENCIES) {
     const group = document.createElement("optgroup");
     group.label = label;
@@ -43,7 +48,8 @@
   const DEFAULTS = {
     enabled: true,
     targetCurrency: "USD",
-    dollarAssumption: "USD",
+    // "auto" reads the currency off the page; picking a code here overrides it.
+    dollarAssumption: "auto",
   };
 
   function ago(ts) {

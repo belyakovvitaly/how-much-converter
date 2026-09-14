@@ -9,7 +9,14 @@
 // 23.000</span> — where no single text node holds a complete price.
 
 (function () {
-  const { SYMBOL_TO_CODE, NUMBER, parseAmount, formatConverted } = self.HMC;
+  const {
+    SYMBOL_TO_CODE,
+    AMBIGUOUS_SYMBOLS,
+    NUMBER,
+    parseAmount,
+    formatConverted,
+    detectPageCurrency,
+  } = self.HMC;
 
   const WRAP_CLASS = "hmc-wrap";
   const CONV_CLASS = "hmc-conv";
@@ -20,10 +27,11 @@
   let settings = {
     enabled: true,
     targetCurrency: "USD",
-    dollarAssumption: "USD",
+    dollarAssumption: "auto",
   };
   let rates = null; // { base, rates: { USD: 1, ... } }
   let observer = null;
+  let pageCurrency = null; // what "$" or "¥" means *here*; null = unknown
 
   // Currency alternation: every known symbol (longest first, so "R$" wins over
   // "$") plus any three-letter ISO code, fenced by letters on both sides so a
@@ -41,23 +49,27 @@
     "gu"
   );
 
-  function resolveCode(token) {
-    if (!token) return null;
-    if (SYMBOL_TO_CODE[token]) {
-      const code = SYMBOL_TO_CODE[token];
-      return code === "USD" && token === "$" ? settings.dollarAssumption : code;
-    }
-    const up = token.toUpperCase();
+  // An ISO code, but only one we hold a rate for: "USD" is a currency here,
+  // "EUR" is, "SKU" is not.
+  function knownCode(value) {
+    const up = String(value || "").trim().toUpperCase();
     return /^[A-Z]{3}$/.test(up) && rates.rates[up] ? up : null;
   }
 
-  function convert(amount, fromCode) {
-    const to = settings.targetCurrency;
-    if (!fromCode || fromCode === to) return null;
-    const from = rates.rates[fromCode];
-    const dest = rates.rates[to];
-    if (!from || !dest) return null;
-    return (amount / from) * dest;
+  function resolveCode(token) {
+    if (!token) return null;
+    const code = SYMBOL_TO_CODE[token];
+    if (code) {
+      const options = AMBIGUOUS_SYMBOLS[token];
+      if (!options) return code;
+      // The "$" setting is a manual override; on "auto" it defers to the page
+      // like every other ambiguous symbol.
+      if (token === "$" && settings.dollarAssumption !== "auto") {
+        return settings.dollarAssumption;
+      }
+      return options.includes(pageCurrency) ? pageCurrency : null;
+    }
+    return knownCode(token);
   }
 
   function conversionNode(converted) {
@@ -207,6 +219,11 @@
   };
 
   const rescan = debounce(() => {
+    // A shop that renders its offer client-side has no JSON-LD to read on the
+    // first pass, so keep looking until something answers.
+    if (!pageCurrency) {
+      pageCurrency = detectPageCurrency(document, location, knownCode);
+    }
     unwrapAll();
     apply();
   }, 400);
@@ -244,6 +261,8 @@
 
     rates = await getRates();
     if (!rates) return;
+
+    pageCurrency = detectPageCurrency(document, location, knownCode);
 
     startObserver();
     apply();

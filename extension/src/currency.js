@@ -132,6 +132,145 @@ const DOLLAR_CURRENCIES = [
   },
 ];
 
+// Symbols that more than one currency writes the same way. The page's own
+// currency decides between them (see detectPageCurrency in content.js); with
+// no signal the price is left alone, because a plausible-looking wrong amount
+// is worse than no annotation at all.
+//
+// "$" keeps its own setting as a manual override, since it is the one symbol
+// a traveller can reasonably be expected to answer for.
+const AMBIGUOUS_SYMBOLS = {
+  "$": DOLLAR_CURRENCIES.flatMap((group) => group.codes),
+  "\u00a5": ["JPY", "CNY"],
+};
+
+// Country (a ccTLD, or the region subtag of a lang attribute) to the currency
+// its shops price in. Only currencies this extension can convert are listed:
+// a country whose currency it does not know is better left undetected.
+const COUNTRY_TO_CURRENCY = {
+  ae: "AED", ar: "ARS", au: "AUD", bo: "BOB", br: "BRL", ca: "CAD",
+  ch: "CHF", cl: "CLP", cn: "CNY", co: "COP", cr: "CRC", cu: "CUP",
+  cz: "CZK", dk: "DKK", do: "DOP", ec: "USD", eg: "EGP", gb: "GBP",
+  ge: "GEL", gt: "GTQ", hk: "HKD", hu: "HUF", id: "IDR", il: "ILS",
+  in: "INR", jp: "JPY", kr: "KRW", kz: "KZT", li: "CHF", mx: "MXN",
+  my: "MYR", ng: "NGN", no: "NOK", nz: "NZD", pa: "PAB", pe: "PEN",
+  ph: "PHP", pl: "PLN", py: "PYG", ro: "RON", rs: "RSD", ru: "RUB",
+  sa: "SAR", se: "SEK", sg: "SGD", th: "THB", tr: "TRY", tw: "TWD",
+  ua: "UAH", uk: "GBP", us: "USD", uy: "UYU", ve: "VES", vn: "VND",
+  za: "ZAR",
+  // The euro area. Bulgaria joined on 1 January 2026, so a .bg shop prices in
+  // euro now; BGN stays in the currency list for pages written before that.
+  ad: "EUR", at: "EUR", be: "EUR", bg: "EUR", cy: "EUR", de: "EUR",
+  ee: "EUR", es: "EUR", fi: "EUR", fr: "EUR", gr: "EUR", hr: "EUR",
+  ie: "EUR", it: "EUR", lt: "EUR", lu: "EUR", lv: "EUR", mc: "EUR",
+  mt: "EUR", nl: "EUR", pt: "EUR", si: "EUR", sk: "EUR", sm: "EUR",
+};
+
+// Languages spoken in exactly one currency area. Deliberately short: German,
+// French, Italian and Portuguese each straddle two currencies, and Spanish and
+// English a dozen, so they say nothing on their own and are left out.
+const LANG_TO_CURRENCY = {
+  cs: "CZK", da: "DKK", el: "EUR", et: "EUR", fi: "EUR", he: "ILS",
+  hi: "INR", hr: "EUR", hu: "HUF", id: "IDR", ja: "JPY", ka: "GEL",
+  kk: "KZT", ko: "KRW", lt: "EUR", lv: "EUR", ms: "MYR", nb: "NOK",
+  nl: "EUR", nn: "NOK", no: "NOK", pl: "PLN", ro: "RON", ru: "RUB",
+  sk: "EUR", sl: "EUR", sr: "RSD", sv: "SEK", th: "THB", tr: "TRY",
+  uk: "UAH", vi: "VND",
+};
+
+// The last label of a hostname: "falabella.com.pe" -> PEN, "takealot.com" -> null.
+function currencyFromHostname(hostname) {
+  const tld = String(hostname || "").toLowerCase().split(".").pop();
+  return COUNTRY_TO_CURRENCY[tld] || null;
+}
+
+// A lang attribute, region first: "en-ZA" is South African however English it
+// is, and "zh-Hant-TW" is Taiwan. A bare "en" or "es" resolves to nothing.
+function currencyFromLang(lang) {
+  const parts = String(lang || "").toLowerCase().split("-");
+  for (let i = parts.length - 1; i > 0; i--) {
+    if (parts[i].length === 2 && COUNTRY_TO_CURRENCY[parts[i]]) {
+      return COUNTRY_TO_CURRENCY[parts[i]];
+    }
+  }
+  return LANG_TO_CURRENCY[parts[0]] || null;
+}
+
+// --- What currency is a page priced in? ------------------------------------
+//
+// Only consulted for symbols that are ambiguous on their own. Order matters:
+// the page's own machine-readable statement beats a guess from its address,
+// which beats a guess from its language. `isKnownCode` is the caller's test
+// for "a currency we hold a rate for" — the markup is full of three-letter
+// strings that are not currencies.
+
+const MAX_LD_SCRIPTS = 20;
+const MAX_LD_NODES = 2000;
+
+// Breadth-first, so a shallow page-level offer is seen before anything buried
+// in a nested catalogue, and bounded so a huge blob cannot stall the page.
+function findPriceCurrency(root, isKnownCode) {
+  const queue = [root];
+  let seen = 0;
+  while (queue.length && seen < MAX_LD_NODES) {
+    const node = queue.shift();
+    seen++;
+    if (!node || typeof node !== "object") continue;
+    if (!Array.isArray(node)) {
+      const code = isKnownCode(node.priceCurrency);
+      if (code) return code;
+    }
+    for (const value of Object.values(node)) {
+      if (value && typeof value === "object") queue.push(value);
+    }
+  }
+  return null;
+}
+
+// The three shapes shops state their currency in. Authoritative when present:
+// the site is telling us outright rather than us inferring anything.
+function currencyFromMarkup(doc, isKnownCode) {
+  for (const el of doc.querySelectorAll(
+    '[itemprop~="priceCurrency"],[property~="priceCurrency"]'
+  )) {
+    const code = isKnownCode(el.getAttribute("content") || el.textContent);
+    if (code) return code;
+  }
+
+  const meta = doc.querySelector(
+    'meta[property="product:price:currency"],meta[property="og:price:currency"]'
+  );
+  if (meta) {
+    const code = isKnownCode(meta.getAttribute("content"));
+    if (code) return code;
+  }
+
+  const scripts = [
+    ...doc.querySelectorAll('script[type="application/ld+json"]'),
+  ].slice(0, MAX_LD_SCRIPTS);
+  for (const script of scripts) {
+    let data;
+    try {
+      data = JSON.parse(script.textContent);
+    } catch {
+      continue; // hand-built JSON-LD is often malformed; it is only a hint
+    }
+    // A page may carry several offers. The first currency wins: it is the
+    // page's main one often enough, and surveying them all would not say more.
+    const code = findPriceCurrency(data, isKnownCode);
+    if (code) return code;
+  }
+  return null;
+}
+
+function detectPageCurrency(doc, loc, isKnownCode) {
+  return (
+    currencyFromMarkup(doc, isKnownCode) ||
+    currencyFromHostname(loc.hostname) ||
+    currencyFromLang(doc.documentElement.lang)
+  );
+}
+
 // Number token: 1 234 567,89 / 1,234,567.89 / 1'234'567.89 / 1234.5 / 1234
 // The apostrophes are Switzerland's thousands separator, in both the typographic
 // and the typewriter spelling; a shop picks one or the other.
@@ -201,8 +340,13 @@ if (typeof self !== "undefined") {
     CURRENCY_NAMES,
     CURRENCIES,
     DOLLAR_CURRENCIES,
+    AMBIGUOUS_SYMBOLS,
     NUMBER,
     parseAmount,
     formatConverted,
+    currencyFromHostname,
+    currencyFromLang,
+    currencyFromMarkup,
+    detectPageCurrency,
   };
 }
