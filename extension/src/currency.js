@@ -69,6 +69,10 @@ const SYMBOL_TO_CODE = {
   "円": "JPY",
   "원": "KRW",
   "บาท": "THB",
+  // Sweden's way of saying "kronor, and no öre": 429:- is 429 kr. There is no
+  // currency in the text at all, so only the page's own country can say which
+  // krona it is.
+  ":-": "SEK",
   // Ambiguous, and so only resolved when the page says which country it is.
   "R": "ZAR",
   "元": "CNY",
@@ -177,6 +181,7 @@ const AMBIGUOUS_SYMBOLS = {
   "Rs.": ["INR"],
   R: ["ZAR"],
   元: ["CNY", "TWD"],
+  ":-": ["SEK", "NOK", "DKK"],
 };
 
 // Two tokens are too common in ordinary text to be matched on their own, and
@@ -197,6 +202,10 @@ const TOKEN_PATTERNS = {
   // R16 and R5 alone. It also gives up prices under R100, which is the side to
   // err on: a missed conversion is an inconvenience, a wrong one is a lie.
   R: "R(?=\\s?(?:\\d{1,3}[.,\u00a0\u202f ]\\d{3}|\\d+[.,]\\d{2}|\\d{3,}))",
+  // ":-" has to touch the number — "429:-" is a price, "5 :-)" is a smiley with
+  // a 5 in front of it — and nothing may follow that would make it something
+  // else: a digit (a time, a range) or the rest of a smiley.
+  ":-": "(?<=\\d):-(?![\\d)\\p{L}])",
 };
 
 // Country (a ccTLD, or the region subtag of a lang attribute) to the currency
@@ -344,7 +353,10 @@ function detectPageCurrency(doc, loc, isKnownCode) {
 // Number token: 1 234 567,89 / 1,234,567.89 / 1'234'567.89 / 1234.5 / 1234
 // The apostrophes are Switzerland's thousands separator, in both the typographic
 // and the typewriter spelling; a shop picks one or the other.
-const NUMBER = String.raw`\d{1,3}(?:[.,   '’]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?`;
+// A dash can stand in for the minor unit — German and Austrian shops write
+// "1.449,–" for a round amount — in either the typographic or the hyphen form.
+const MINOR = String.raw`[.,](?:\d{1,2}|[–-])`;
+const NUMBER = String.raw`\d{1,3}(?:[.,   '’]\d{3})+(?:${MINOR})?|\d+(?:${MINOR})?`;
 
 // A token written in a script that spaces its words has to be fenced off by
 // letters, or "руб" matches inside "рубанок" and "USD" inside "USDT". A token
@@ -361,10 +373,16 @@ function buildPriceRegExp() {
   const fenced = symbols.filter((sym) => SPACED_SCRIPT.test(sym)).map(pattern);
   const bare = symbols.filter((sym) => !SPACED_SCRIPT.test(sym)).map(pattern);
 
+  // Spelling the ISO codes out rather than matching any three capitals: a
+  // stray "UVP" or "SKU" would otherwise match and consume the number after
+  // it, and the real price alongside — "UVP 1449,– €" — would be gone by the
+  // time the scan resumed.
+  const codes = Object.keys(CURRENCY_NAMES).join("|");
+
   // Longest first within each group, and the fenced group first overall, so
   // "R$" wins over "$" and "US$" over "$".
   const cur =
-    `(?:(?<![\\p{L}])(?:${fenced.join("|")}|[A-Z]{3})(?![\\p{L}])` +
+    `(?:(?<![\\p{L}])(?:${fenced.join("|")}|${codes})(?![\\p{L}])` +
     `|(?:${bare.join("|")}))`;
 
   return new RegExp(`(${cur})\\s?(${NUMBER})|(${NUMBER})\\s?(${cur})`, "gu");
@@ -393,7 +411,8 @@ function resolveSymbol(token, context) {
 // Turns a localized number string into a Number, guessing the decimal
 // separator from context. Returns null when it cannot be parsed.
 function parseAmount(raw) {
-  let s = String(raw).replace(/[  \s'’]/g, "");
+  // The dash standing in for the minor unit carries no value: "1.449,–" is 1449.
+  let s = String(raw).replace(/[  \s'’]/g, "").replace(/[.,][–-]$/, "");
   const hasComma = s.includes(",");
   const hasDot = s.includes(".");
 

@@ -47,7 +47,10 @@
       <li>South African rand, only when the number looks like a price: R 1 299,00</li>
       <li>Chinese yuan: 5999&#20803; &mdash; but not the New Year: 2026&#20803;&#26086;</li>
       <li>Should be ignored (a tyre size, not a price): 205/55 R16 91V</li>
-      <li>Needs a country to be sure, so skipped here: 4 990 kr, 1.299,99 lei, Rs. 79,900</li>
+      <li>A dash where the minor unit goes: 1.449,&ndash; &euro; and 1.449,- &euro;</li>
+      <li>Needs a country to be sure, so skipped here: 3 795:- (Sweden writes a
+        price with no currency in it at all), 4 990 kr, 1.299,99 lei, Rs. 79,900</li>
+      <li>Should be ignored (a smiley, not 5 kronor): Tack f&ouml;r allt 5 :-)</li>
       <li>Split across elements (stock.com.py):
         <span class="productPrice"><span>Gs&nbsp;</span><span>&nbsp;23.000</span></span></li>
       <li>Split across elements (geant.com.uy):
