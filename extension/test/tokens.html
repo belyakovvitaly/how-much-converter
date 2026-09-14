@@ -74,6 +74,47 @@
           ["$19.99", "USD", "USD", 19.99],
           ["$19.99", null, null, null],
 
+          // --- 元: guarded against ordinary Chinese words ---
+          ["5999元", "CNY", "CNY", 5999],
+          ["5999元", "TWD", "TWD", 5999],
+          ["5999元/件", "CNY", "CNY", 5999],
+          ["5999元。", "CNY", "CNY", 5999],
+          ["2026元旦", "CNY", null, null],
+          ["单元 3 元素", "CNY", null, null],
+          ["5999元起", "CNY", null, null],
+          ["5999元", null, null, null],
+
+          // --- R: guarded by the shape of the number ---
+          ["R 1 299,00", "ZAR", "ZAR", 1299],
+          ["R1 299,00", "ZAR", "ZAR", 1299],
+          ["R89.99", "ZAR", "ZAR", 89.99],
+          ["R 899", "ZAR", "ZAR", 899],
+          ["205/55 R16 91V", "ZAR", null, null],
+          ["R16", "ZAR", null, null],
+          ["size R5 only", "ZAR", null, null],
+          ["R 89", "ZAR", null, null],
+          ["R 1 299,00", null, null, null],
+          ["R$ 89,90", "ZAR", "BRL", 89.9],
+          ["R$ 89,90", null, "BRL", 89.9],
+
+          // --- a price with no currency in it at all (ikea.com/se) ---
+          ["3 795:-", "SEK", "SEK", 3795],
+          ["1 295:-", "SEK", "SEK", 1295],
+          ["Pris 3795:-", "SEK", "SEK", 3795],
+          ["3 795:-", "NOK", "NOK", 3795],
+          ["3 795:-", null, null, null],
+          ["3 795:-", "EUR", null, null],
+          ["Tack för allt 5 :-)", "SEK", null, null],
+          ["öppet 10:-30", "SEK", null, null],
+          ["skriv :-D", "SEK", null, null],
+
+          // --- a dash standing in for the minor unit (mediamarkt.de) ---
+          ["1.449,– €", null, "EUR", 1449],
+          ["1.449,- €", null, "EUR", 1449],
+          ["€1.449,–", null, "EUR", 1449],
+          ["UVP 1449,– €", null, "EUR", 1449],
+          ["5.-10. Mai", "EUR", null, null],
+
           // --- the "$" setting still overrides ---
           [["$19.99", null, "USD"], null, "USD", 19.99],
           [["$18,999.00", "MXN", "ARS"], null, "ARS", 18999],
@@ -95,12 +136,12 @@
           // --- must NOT match ---
           ["купил 340 рубанков", null, null, null],
           ["500 USDT", null, null, null],
+          ["UVP 1449 €", null, "EUR", 1449],
+          ["SKU 4567 kr", "SEK", "SEK", 4567],
           ["42 items in stock", null, null, null],
           ["the 90's were great", null, null, null],
           ["12 kronor är inte kr", "SEK", null, null],
           ["a 12 Rsync run", "INR", null, null],
-          ["R 1 299,00", "ZAR", null, null],
-          ["2026元旦", "CNY", null, null],
         ];
 
         let fail = 0;

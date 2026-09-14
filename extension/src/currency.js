@@ -69,7 +69,13 @@ const SYMBOL_TO_CODE = {
   "円": "JPY",
   "원": "KRW",
   "บาท": "THB",
+  // Sweden's way of saying "kronor, and no öre": 429:- is 429 kr. There is no
+  // currency in the text at all, so only the page's own country can say which
+  // krona it is.
+  ":-": "SEK",
   // Ambiguous, and so only resolved when the page says which country it is.
+  "R": "ZAR",
+  "元": "CNY",
   "kr": "SEK",
   "lei": "RON",
   "Rs.": "INR",
@@ -173,6 +179,33 @@ const AMBIGUOUS_SYMBOLS = {
   lei: ["RON"],
   Rs: ["INR"],
   "Rs.": ["INR"],
+  R: ["ZAR"],
+  元: ["CNY", "TWD"],
+  ":-": ["SEK", "NOK", "DKK"],
+};
+
+// Two tokens are too common in ordinary text to be matched on their own, and
+// what saves them is not the same thing, so each gets its own pattern here in
+// place of the plain escaped literal. These are regex source, not literals:
+// nothing escapes them.
+const TOKEN_PATTERNS = {
+  // 元 opens a great many ordinary Chinese words — 元旦, 元月, 元素 — and closes
+  // as many others — 单元, 纪元. A price neither continues into another Han
+  // character nor follows one, so refuse on either side. Fencing both ends
+  // matters: without the lookbehind the 元 of 单元 pairs with the number after
+  // it and "单元 3 元素" reads as 3 yuan. The cost is "5999元起" ("from 5999"),
+  // which is the price of not reading 2026元旦 as 2026 yuan.
+  元: "(?<![\\p{Script=Han}])元(?![\\p{Script=Han}])",
+  // R is a lone capital letter sitting where a tyre size ("205/55 R16"), a
+  // model number or a year could be. Requiring the number to be shaped like a
+  // price — grouped thousands, two decimals, or three digits and up — leaves
+  // R16 and R5 alone. It also gives up prices under R100, which is the side to
+  // err on: a missed conversion is an inconvenience, a wrong one is a lie.
+  R: "R(?=\\s?(?:\\d{1,3}[.,\u00a0\u202f ]\\d{3}|\\d+[.,]\\d{2}|\\d{3,}))",
+  // ":-" has to touch the number — "429:-" is a price, "5 :-)" is a smiley with
+  // a 5 in front of it — and nothing may follow that would make it something
+  // else: a digit (a time, a range) or the rest of a smiley.
+  ":-": "(?<=\\d):-(?![\\d)\\p{L}])",
 };
 
 // Country (a ccTLD, or the region subtag of a lang attribute) to the currency
@@ -294,6 +327,21 @@ function currencyFromMarkup(doc, isKnownCode) {
   return null;
 }
 
+// textContent runs adjacent elements together, so a token ending one element
+// and a number starting the next read as a single price: IKEA's "4 000+ kr"
+// filter sitting next to a "126 produkter" count becomes "kr126". innerText is
+// what the page actually shows — with the line breaks the layout puts in — so
+// a match that survives there is one a reader would see as one price too.
+//
+// Costly enough (it forces layout) to be worth calling only on a text that has
+// already matched, and only while nothing is being written to the page.
+function matchIsVisible(el, matched) {
+  const shown = el.innerText;
+  // An element outside the layout has no innerText of its own to disagree with.
+  if (!shown) return true;
+  return shown.replace(/\s+/gu, " ").trim().includes(matched);
+}
+
 function detectPageCurrency(doc, loc, isKnownCode) {
   return (
     currencyFromMarkup(doc, isKnownCode) ||
@@ -305,7 +353,10 @@ function detectPageCurrency(doc, loc, isKnownCode) {
 // Number token: 1 234 567,89 / 1,234,567.89 / 1'234'567.89 / 1234.5 / 1234
 // The apostrophes are Switzerland's thousands separator, in both the typographic
 // and the typewriter spelling; a shop picks one or the other.
-const NUMBER = String.raw`\d{1,3}(?:[.,   '’]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?`;
+// A dash can stand in for the minor unit — German and Austrian shops write
+// "1.449,–" for a round amount — in either the typographic or the hyphen form.
+const MINOR = String.raw`[.,](?:\d{1,2}|[–-])`;
+const NUMBER = String.raw`\d{1,3}(?:[.,   '’]\d{3})+(?:${MINOR})?|\d+(?:${MINOR})?`;
 
 // A token written in a script that spaces its words has to be fenced off by
 // letters, or "руб" matches inside "рубанок" and "USD" inside "USDT". A token
@@ -316,15 +367,22 @@ const SPACED_SCRIPT = /[\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Greek}]/u;
 
 // <currency><number> or <number><currency>, anywhere in a run of text.
 function buildPriceRegExp() {
-  const escape = (sym) => sym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = (sym) =>
+    TOKEN_PATTERNS[sym] ?? sym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const symbols = Object.keys(SYMBOL_TO_CODE).sort((a, b) => b.length - a.length);
-  const fenced = symbols.filter((sym) => SPACED_SCRIPT.test(sym)).map(escape);
-  const bare = symbols.filter((sym) => !SPACED_SCRIPT.test(sym)).map(escape);
+  const fenced = symbols.filter((sym) => SPACED_SCRIPT.test(sym)).map(pattern);
+  const bare = symbols.filter((sym) => !SPACED_SCRIPT.test(sym)).map(pattern);
+
+  // Spelling the ISO codes out rather than matching any three capitals: a
+  // stray "UVP" or "SKU" would otherwise match and consume the number after
+  // it, and the real price alongside — "UVP 1449,– €" — would be gone by the
+  // time the scan resumed.
+  const codes = Object.keys(CURRENCY_NAMES).join("|");
 
   // Longest first within each group, and the fenced group first overall, so
   // "R$" wins over "$" and "US$" over "$".
   const cur =
-    `(?:(?<![\\p{L}])(?:${fenced.join("|")}|[A-Z]{3})(?![\\p{L}])` +
+    `(?:(?<![\\p{L}])(?:${fenced.join("|")}|${codes})(?![\\p{L}])` +
     `|(?:${bare.join("|")}))`;
 
   return new RegExp(`(${cur})\\s?(${NUMBER})|(${NUMBER})\\s?(${cur})`, "gu");
@@ -353,7 +411,8 @@ function resolveSymbol(token, context) {
 // Turns a localized number string into a Number, guessing the decimal
 // separator from context. Returns null when it cannot be parsed.
 function parseAmount(raw) {
-  let s = String(raw).replace(/[  \s'’]/g, "");
+  // The dash standing in for the minor unit carries no value: "1.449,–" is 1449.
+  let s = String(raw).replace(/[  \s'’]/g, "").replace(/[.,][–-]$/, "");
   const hasComma = s.includes(",");
   const hasDot = s.includes(".");
 
@@ -424,5 +483,6 @@ if (typeof self !== "undefined") {
     currencyFromLang,
     currencyFromMarkup,
     detectPageCurrency,
+    matchIsVisible,
   };
 }

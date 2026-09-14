@@ -15,6 +15,7 @@
     parseAmount,
     formatConverted,
     detectPageCurrency,
+    matchIsVisible,
   } = self.HMC;
 
   const WRAP_CLASS = "hmc-wrap";
@@ -139,15 +140,19 @@
   // text: shops append units to it ("340 руб/шт").
   function annotateSplit(root) {
     // Reverse document order puts descendants before their ancestors, so the
-    // innermost element around a price claims it and the outer ones then see
-    // the annotation already inside and leave it alone.
+    // innermost element around a price claims it and the outer ones then find
+    // it taken and leave it alone.
     const all = root.querySelectorAll("*");
+    const claimed = new WeakSet();
+    const pending = [];
+
     for (let i = all.length - 1; i >= 0; i--) {
       const el = all[i];
       if (el.childElementCount < 1 || el.childElementCount > SPLIT_MAX_CHILDREN) continue;
       if (el.getElementsByTagName("*").length > SPLIT_MAX_DESCENDANTS) continue;
       if (shouldSkip(el)) continue;
-      if (el.querySelector(`.${CONV_CLASS}`)) continue;
+      // Taken by a descendant in this pass, or annotated by the first one.
+      if (claimed.has(el) || el.querySelector(`.${CONV_CLASS}`)) continue;
 
       const raw = el.textContent;
       // Cheap bound first: markup indentation inflates textContent, so the real
@@ -161,11 +166,23 @@
       if (matches.length !== 1) continue;
 
       const [match] = matches;
+      // ...and one the reader can actually see as a price, rather than two
+      // neighbouring elements that textContent ran together.
+      if (!matchIsVisible(el, match[0])) continue;
+
       const amount = parseAmount(match[2] || match[3]);
       const converted =
         amount == null ? null : convert(amount, resolveCode(match[1] || match[4]));
       if (converted == null) continue;
 
+      pending.push([el, converted]);
+      for (let p = el; p; p = p.parentElement) claimed.add(p);
+    }
+
+    // Nothing above writes to the page. Everything that does happens here, so
+    // that reading innerText — which forces layout — never lands between two
+    // edits and makes the browser re-lay-out the page for each one.
+    for (const [el, converted] of pending) {
       el.appendChild(conversionNode(converted));
     }
   }
