@@ -51,11 +51,34 @@ class PaddleOnnxEngine private constructor(
      */
     private var tracker = TrackerState()
 
+    /**
+     * What the last frame cost, split by stage.
+     *
+     * Kept because the total alone cannot say what to fix: detection and
+     * recognition are improved by opposite things, and on a shelf most of the
+     * recognition is spent reading text that could never be a price.
+     */
+    @Volatile
+    var timings: Timings = Timings()
+        private set
+
+    /** Where one frame's time went. */
+    data class Timings(
+        val detectMillis: Long = 0,
+        val postProcessMillis: Long = 0,
+        val recogniseMillis: Long = 0,
+        val boxes: Int = 0,
+        val recognised: Int = 0,
+        val reused: Int = 0,
+        val skipped: Int = 0,
+    )
+
     override fun reset() {
         tracker = TrackerState()
     }
 
     override fun recognize(frame: Bitmap): List<OcrLine> {
+        val detectStart = System.currentTimeMillis()
         val (input, scale) = detectorInput(frame)
         val probabilities: FloatArray
         val mapWidth: Int
@@ -77,11 +100,32 @@ class PaddleOnnxEngine private constructor(
             }
         }
 
+        val detectMillis = System.currentTimeMillis() - detectStart
+
+        val postStart = System.currentTimeMillis()
+        val detections = detectBoxes(probabilities, mapWidth, mapHeight)
+        val postMillis = System.currentTimeMillis() - postStart
+
+        val recogniseStart = System.currentTimeMillis()
         val lines = mutableListOf<OcrLine>()
         val carried = mutableListOf<TrackedLine>()
+        var recognised = 0
+        var reusedCount = 0
+        var skipped = 0
 
-        for (detection in detectBoxes(probabilities, mapWidth, mapHeight)) {
-            val box = detection.box.scaleTo(scale.x, scale.y, frame.width, frame.height)
+        // Reading costs about the same for every box, and a shelf is mostly
+        // fine print that could never be a price: on the benchmark's shelf, 28
+        // boxes read cost 368 ms of a 535 ms frame. So the tallest text is read
+        // first — a price is the large type on a tag — and only so much of it
+        // per frame. Nothing is lost by the cap: a box left unread now is read
+        // in a later frame, and one read now is free in every frame after that,
+        // because the tracker carries it.
+        val minHeight = frame.height * MIN_TEXT_HEIGHT
+        val ordered = detections
+            .map { it to it.box.scaleTo(scale.x, scale.y, frame.width, frame.height) }
+            .sortedByDescending { (_, box) -> box.height }
+
+        for ((_, box) in ordered) {
 
             val previous = tracker.reuseFor(box)
             if (previous != null) {
@@ -90,6 +134,17 @@ class PaddleOnnxEngine private constructor(
                 // not the same as several frames agreeing.
                 lines += OcrLine(previous.text, previous.confidence, box, reused = true)
                 carried += TrackedLine(box, previous.text, previous.confidence, previous.reuses + 1)
+                reusedCount++
+                continue
+            }
+
+            // Text this small reads as noise whatever the budget allows.
+            if (box.height < minHeight) {
+                skipped++
+                continue
+            }
+            if (recognised >= MAX_NEW_READINGS) {
+                skipped++
                 continue
             }
 
@@ -101,9 +156,19 @@ class PaddleOnnxEngine private constructor(
             val confidence = reading.confidence.toDouble()
             lines += OcrLine(reading.text, confidence, box)
             carried += TrackedLine(box, reading.text, confidence, reuses = 0)
+            recognised++
         }
 
         tracker = TrackerState(carried)
+        timings = Timings(
+            detectMillis = detectMillis,
+            postProcessMillis = postMillis,
+            recogniseMillis = System.currentTimeMillis() - recogniseStart,
+            boxes = detections.size,
+            recognised = recognised,
+            reused = reusedCount,
+            skipped = skipped,
+        )
         return lines
     }
 
@@ -223,6 +288,15 @@ class PaddleOnnxEngine private constructor(
         private const val REC_HEIGHT = 48
         private const val REC_MAX_WIDTH = 1600
         private const val MIN_CROP = 3
+
+        /**
+         * How many boxes may be read afresh in one frame. The rest wait for the
+         * next one, by which time these are free.
+         */
+        private const val MAX_NEW_READINGS = 12
+
+        /** Text shorter than this fraction of the frame reads as noise. */
+        private const val MIN_TEXT_HEIGHT = 0.012
 
         /** Side margin around a crop, in units of the text height. */
         private const val SIDE_MARGIN = 0.3

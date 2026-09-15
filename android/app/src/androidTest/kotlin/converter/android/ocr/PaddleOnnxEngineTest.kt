@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import converter.core.Price
+import converter.core.PriceContext
 import converter.core.RateTable
 import converter.core.convert
 import converter.core.formatConverted
@@ -226,6 +227,46 @@ class PaddleOnnxEngineTest {
             "a sideways frame should read as nothing, not as $fromSideways",
             fromSideways.isEmpty(),
         )
+    }
+
+    @Test
+    fun readsAWholeShelfWithinABudget() {
+        // A whole shelf is the case that was slow on a phone: several tags at
+        // once, each surrounded by fine print that costs a recognizer run
+        // apiece and could never be a price. Reading is capped per frame and
+        // spends itself on the tallest text first, so the question is not only
+        // whether a frame is quick but whether the prices still all arrive —
+        // over a few frames, as the camera would give them.
+        val context = InstrumentationRegistry.getInstrumentation().context
+        for (case in listOf("close", "shelf", "far")) {
+            val bitmap = context.assets.open("regression/$case.png").use {
+                BitmapFactory.decodeStream(it)
+            }
+            engine.reset()
+
+            val seen = mutableSetOf<Price>()
+            for (pass in 1..4) {
+                val started = System.currentTimeMillis()
+                val lines = engine.recognize(bitmap)
+                val total = System.currentTimeMillis() - started
+                // Argentine tags: "$" there is a peso, and without a country
+                // the rule refuses the symbol outright — correctly, which is
+                // why the app feeds it one.
+                val prices = readPrices(lines, PriceContext(pageCurrency = "ARS"))
+                seen += prices
+                val t = engine.timings
+                Log.i(
+                    TAG,
+                    "$case frame $pass: ${total} ms = detect ${t.detectMillis} " +
+                        "+ boxes ${t.postProcessMillis} + read ${t.recogniseMillis}; " +
+                        "${t.boxes} boxes, ${t.recognised} read, ${t.reused} reused, " +
+                        "${t.skipped} skipped, ${prices.size} prices, ${seen.size} seen so far",
+                )
+            }
+            bitmap.recycle()
+
+            assertTrue("$case found no prices at all", seen.isNotEmpty())
+        }
     }
 
     companion object {

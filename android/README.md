@@ -58,8 +58,29 @@ viewfinder. The UI names the running engine and warns when that engine cannot
 read Cyrillic, because a Latin-only recognizer corrupts those prices instead of
 missing them.
 
-Frames are not chased at video rate and should not be: recognition runs about
-830 ms a frame on an emulator.
+## What a frame costs, and where
+
+Measured on an emulator, over a shelf of six tags surrounded by the fine print
+a real tag carries:
+
+| stage | shelf, first frame | shelf, settled |
+| --- | --- | --- |
+| detect | 160 ms | 115 ms |
+| find boxes | 3 ms | 3 ms |
+| read text | 103 ms | 1 ms |
+| **total** | **266 ms** | **114 ms** |
+
+Reading is what grows with a busy scene — about 13 ms a box, and a shelf is
+mostly text that could never be a price. So boxes are read tallest first, since
+a price is the large type on a tag, and only twelve afresh per frame. Nothing is
+lost to the cap: a box left unread this frame is read in the next, and one read
+now is free in every frame after, because the tracker carries it. On the shelf
+all six prices arrive in the first frame regardless, because the ordering puts
+them at the front. Text shorter than about a hundredth of the frame is skipped
+outright — it reads as noise at any budget.
+
+That took the shelf from 535 ms a frame to 266, and to 114 once the scene
+settles. What is left is mostly detection, which is roughly constant.
 
 Two things about a camera frame that a fixture never shows, and that the first
 build on a real phone got wrong:
