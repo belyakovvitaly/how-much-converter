@@ -23,15 +23,19 @@ STUB='<script>
     storage: { local: { get: async () => ({ enabled: true, targetCurrency: "USD",
                dollarAssumption: "UYU", ratesCache: { fetchedAt: Date.now() - 1000 } }), set() {} },
                onChanged: { addListener() {} } },
-    runtime: { sendMessage: (m, cb) => cb({ ok: true, cache: { base: "USD", fetchedAt: Date.now(),
+    runtime: { getManifest: () => ({ version: "__VERSION__" }),
+               sendMessage: (m, cb) => cb({ ok: true, cache: { base: "USD", fetchedAt: Date.now(),
                rates: { USD: 1, UYU: 40.1, PYG: 7300, EUR: 0.921, BRL: 5.42, CHF: 0.879 } } }),
                onMessage: { addListener() {} } },
+    tabs: { query: async () => [{ id: 1 }], sendMessage: async () => null, create() {} },
   };
 </script>'
 
-python3 - "$TMP" "$STUB" <<'PY'
+version=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' extension/manifest.json | head -1)
+
+python3 - "$TMP" "$STUB" "$version" <<'PY'
 import sys, pathlib
-tmp, stub = pathlib.Path(sys.argv[1]), sys.argv[2]
+tmp, stub = pathlib.Path(sys.argv[1]), sys.argv[2].replace("__VERSION__", sys.argv[3])
 demo = pathlib.Path("extension/test/demo.html").read_text(encoding="utf-8")
 inline = demo.replace("  </body>", f'''    {stub}
     <script src="/extension/src/currency.js"></script>
@@ -44,6 +48,16 @@ inline = demo.replace("  </body>", f'''    {stub}
         box-shadow: 0 12px 34px rgba(12,22,38,.28), 0 2px 6px rgba(12,22,38,.12); }
     </style>
     <iframe id="shot-popup" src="/.screenshot-tmp/popup-inner.html"></iframe>
+    <script>
+      // Fit the frame to the popup rather than to a number: the popup gains a
+      // row every time a setting is added, and a fixed height crops it.
+      const frame = document.getElementById("shot-popup");
+      const fit = () => {
+        const doc = frame.contentDocument;
+        if (doc) frame.style.height = doc.documentElement.scrollHeight + "px";
+      };
+      frame.addEventListener("load", () => { fit(); setTimeout(fit, 400); });
+    </script>
   </body>'''), encoding="utf-8")
 popup = pathlib.Path("extension/src/popup.html").read_text(encoding="utf-8")
 (tmp / "popup-inner.html").write_text(
