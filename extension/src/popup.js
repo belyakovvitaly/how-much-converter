@@ -19,8 +19,13 @@
     reportCount: document.getElementById("reportCount"),
     reportItems: document.getElementById("reportItems"),
     copyReports: document.getElementById("copyReports"),
+    issueReports: document.getElementById("issueReports"),
     clearReports: document.getElementById("clearReports"),
+    version: document.getElementById("version"),
   };
+
+  const VERSION = chrome.runtime.getManifest().version;
+  els.version.textContent = `v${VERSION}`;
 
   function option(code) {
     const opt = document.createElement("option");
@@ -133,7 +138,8 @@
         const li = document.createElement("li");
         const meta = document.createElement("span");
         meta.className = "when";
-        meta.textContent = `${when(r.at)} · ${r.converted} converted — `;
+        meta.textContent =
+          `${when(r.at)} · ${r.converted} converted · ${r.currency || "no currency"} — `;
         li.append(meta, document.createTextNode(r.url));
         return li;
       })
@@ -148,11 +154,23 @@
     }
 
     const { reports = [] } = await chrome.storage.local.get("reports");
+    const { targetCurrency, dollarAssumption } = {
+      ...DEFAULTS,
+      ...(await chrome.storage.local.get(["targetCurrency", "dollarAssumption"])),
+    };
     const entry = {
       url: info.url,
       title: info.title,
       at: Date.now(),
       converted: info.converted,
+      // What the page looked like to the extension, which is what makes a
+      // report worth reading: the currency it settled on, the prices it left
+      // alone, and the settings in force at the time.
+      currency: info.currency || null,
+      missed: info.missed || [],
+      target: targetCurrency,
+      dollar: dollarAssumption,
+      version: VERSION,
     };
     const seen = reports.findIndex((r) => r.url === entry.url);
     if (seen >= 0) reports.splice(seen, 1);
@@ -163,13 +181,47 @@
     renderReports();
   });
 
-  els.copyReports.addEventListener("click", async () => {
+  // One report, written out the way it would be read in an issue.
+  function asText(r) {
+    const lines = [
+      `${new Date(r.at).toISOString().slice(0, 10)}  ${r.url}`,
+      `  extension ${r.version || "?"}  ·  page currency: ${r.currency || "not detected"}` +
+        `  ·  converted: ${r.converted}` +
+        `  ·  target: ${r.target || "?"}  ·  "$" as: ${r.dollar || "?"}`,
+    ];
+    if (r.missed && r.missed.length) {
+      lines.push(`  not converted: ${r.missed.map((m) => JSON.stringify(m)).join("  ")}`);
+    }
+    return lines.join("\n");
+  }
+
+  async function reportText() {
     const { reports = [] } = await chrome.storage.local.get("reports");
-    const text = reports
-      .map((r) => `${new Date(r.at).toISOString().slice(0, 10)}\t${r.converted}\t${r.url}`)
-      .join("\n");
-    await navigator.clipboard.writeText(text);
+    return reports.map(asText).join("\n\n");
+  }
+
+  els.copyReports.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(await reportText());
     els.reportStatus.textContent = "Copied";
+  });
+
+  // Opens the issue form with the report already in it. Nothing leaves the
+  // browser until the form is submitted, which is GitHub's button, not ours.
+  const ISSUES_URL = "https://github.com/belyakovvitaly/how-much-converter/issues/new";
+
+  els.issueReports.addEventListener("click", async () => {
+    const body = `Prices that were not converted:\n\n\`\`\`\n${await reportText()}\n\`\`\`\n`;
+    const url =
+      `${ISSUES_URL}?title=${encodeURIComponent("Prices not converted")}` +
+      `&body=${encodeURIComponent(body)}`;
+    // GitHub drops a URL over about 8k; the clipboard is the way out for a
+    // long list.
+    if (url.length > 8000) {
+      await navigator.clipboard.writeText(await reportText());
+      els.reportStatus.textContent = "Too long — copied instead";
+      return;
+    }
+    chrome.tabs.create({ url });
   });
 
   els.clearReports.addEventListener("click", async () => {

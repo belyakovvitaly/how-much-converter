@@ -16,10 +16,24 @@ deleted when you remove the extension.
 
 ## Reported pages
 
-If you use **Report this page**, the address of that page is added to a list in
-`chrome.storage.local` — the same local storage as the settings. It is not sent
-anywhere. Nobody but you can read it, it is visible only in the extension's own
-popup, and **Clear** deletes it.
+If you use **It didn't work here**, a note about that page is added to a list in
+`chrome.storage.local` — the same local storage as the settings. The note holds
+the address, the page title, the currency the extension decided the page was
+priced in, how many prices it converted, your settings at the time, the version
+of the extension, and up to five short pieces of text from the page that look
+like prices it did not convert.
+
+It is not sent anywhere. Nobody but you can read it, it is visible only in the
+extension's own popup, and **Clear** deletes it.
+
+Two buttons take it out of the browser, and only when you press them:
+
+- **Copy** puts the list on your clipboard, for you to paste wherever you like.
+- **Report on GitHub** opens the issue form with the list already filled in.
+  Nothing is sent by opening it — the text sits in a form on your screen, and
+  it reaches GitHub only if you review it and submit it yourself. Read it
+  first: it contains the addresses of the pages you reported, and anything in
+  a page address is in it too.
 
 ## What is read from web pages
 

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>How Much? — the popup, against a mocked API</title>
+    <style>
+      body { font: 14px/1.5 ui-monospace, monospace; max-width: 68em; margin: 2em auto; }
+      .fail { color: #b00; font-weight: bold; }
+      h1 { font-family: system-ui, sans-serif; }
+      #summary { font-size: 1.2em; margin-top: 1em; }
+      #host { position: absolute; left: -9999px; top: 0; }
+    </style>
+  </head>
+  <body>
+    <h1>The popup, against a mocked API</h1>
+    <p>Loads <code>popup.html</code>'s own markup and runs <code>popup.js</code>
+      on it, then checks what it rendered and what a report comes out as.
+      Every line should say "ok".</p>
+    <pre id="out">running…</pre>
+    <div id="summary"></div>
+    <div id="host"></div>
+
+    <script>
+      window.__copied = null;
+      const STORE = {
+        enabled: true,
+        targetCurrency: "EUR",
+        dollarAssumption: "auto",
+        ratesCache: { fetchedAt: Date.now() - 3600000, stale: false },
+        reports: [],
+      };
+      window.chrome = {
+        runtime: {
+          getManifest: () => ({ version: "9.9.9" }),
+          sendMessage: (msg, cb) => cb && cb({ ok: true }),
+        },
+        storage: {
+          local: {
+            get: async (keys) => {
+              const names = Array.isArray(keys) ? keys : [keys];
+              const out = {};
+              for (const k of names) if (k in STORE) out[k] = STORE[k];
+              return out;
+            },
+            set: async (obj) => Object.assign(STORE, obj),
+            remove: async (k) => { delete STORE[k]; },
+          },
+          onChanged: { addListener() {} },
+        },
+        tabs: {
+          query: async () => [{ id: 1 }],
+          // The page being reported on: a Bolivian shop where nothing converted.
+          sendMessage: async () => ({
+            url: "https://amarket.com.bo/",
+            title: "Amarket",
+            converted: 0,
+            currency: "BOB",
+            missed: ["Bs21,50", "Bs 1.234,56"],
+          }),
+          create: (opts) => { window.__opened = opts.url; },
+        },
+      };
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText: async (t) => { window.__copied = t; } },
+        configurable: true,
+      });
+    </script>
+
+    <script>
+      (async function () {
+        // Use the real popup markup rather than a copy of it, so a renamed id
+        // shows up here instead of in the shipped popup.
+        const markup = await (await fetch("../src/popup.html")).text();
+        const parsed = new DOMParser().parseFromString(markup, "text/html");
+        document.getElementById("host").append(...parsed.body.children);
+
+        await new Promise((done) => {
+          const s = document.createElement("script");
+          s.src = "../src/currency.js";
+          s.onload = done;
+          document.body.appendChild(s);
+        });
+        await new Promise((done) => {
+          const s = document.createElement("script");
+          s.src = "../src/popup.js";
+          s.onload = done;
+          document.body.appendChild(s);
+        });
+
+        const $ = (id) => document.getElementById(id);
+        const checks = [];
+        const check = (name, got, want) =>
+          checks.push([name, got, want, typeof want === "function" ? want(got) : got === want]);
+
+        // Give the popup's own async load a turn.
+        await new Promise((r) => setTimeout(r, 100));
+
+        check("the version is shown", $("version").textContent, "v9.9.9");
+        check("target currencies are listed", $("targetCurrency").options.length > 40, true);
+        check("the saved target is selected", $("targetCurrency").value, "EUR");
+        check('"$" offers detection', $("dollarAssumption").options[0].value, "auto");
+        check("the report button is the new one", $("report").textContent.trim(), "It didn't work here");
+
+        $("report").click();
+        await new Promise((r) => setTimeout(r, 100));
+
+        check("the report was saved", STORE.reports.length, 1);
+        check("it kept the page currency", STORE.reports[0] && STORE.reports[0].currency, "BOB");
+        check("it kept the missed prices", (STORE.reports[0] || {}).missed?.length, 2);
+        check("it kept the version", (STORE.reports[0] || {}).version, "9.9.9");
+
+        $("copyReports").click();
+        await new Promise((r) => setTimeout(r, 100));
+        check("copying writes a readable report", window.__copied, (t) =>
+          typeof t === "string" &&
+          t.includes("amarket.com.bo") &&
+          t.includes("page currency: BOB") &&
+          t.includes('"Bs21,50"') &&
+          t.includes("9.9.9"));
+
+        $("issueReports").click();
+        await new Promise((r) => setTimeout(r, 100));
+        check("the issue form is opened with the report in it", window.__opened, (u) =>
+          typeof u === "string" &&
+          u.startsWith("https://github.com/belyakovvitaly/how-much-converter/issues/new") &&
+          decodeURIComponent(u).includes("Bs21,50"));
+
+        let fail = 0;
+        const lines = checks.map(([name, got, want, ok]) => {
+          if (!ok) fail++;
+          return `${ok ? "ok  " : "FAIL"}  ${name.padEnd(46, " ")} ${String(got).slice(0, 60)}`;
+        });
+        $("out").textContent = lines.join("\n");
+        const summary = $("summary");
+        summary.textContent = `${checks.length - fail} ok, ${fail} fail`;
+        if (fail) summary.className = "fail";
+      })();
+    </script>
+  </body>
+</html>

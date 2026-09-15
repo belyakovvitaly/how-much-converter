@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <h1>How Much?</h1>
+    <h1>How Much? <span id="version" class="version"></span></h1>
 
     <label class="row toggle">
       <input type="checkbox" id="enabled" />
@@ -30,15 +30,21 @@
 
     <div class="reports">
       <div class="row">
-        <button id="report" type="button">Report this page</button>
+        <button id="report" type="button">It didn't work here</button>
         <span id="reportStatus" class="muted"></span>
       </div>
+      <p class="muted note">
+        Saved on this computer only. Nothing is sent anywhere — use
+        <strong>Copy</strong> to take a report out, or <strong>Report on
+        GitHub</strong> to open an issue with it filled in.
+      </p>
 
       <details id="reportList" hidden>
         <summary><span id="reportCount"></span></summary>
         <ul id="reportItems"></ul>
         <div class="row">
-          <button id="copyReports" type="button">Copy all</button>
+          <button id="copyReports" type="button">Copy</button>
+          <button id="issueReports" type="button">Report on GitHub</button>
           <button id="clearReports" type="button">Clear</button>
         </div>
       </details>

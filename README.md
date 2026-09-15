@@ -83,11 +83,19 @@ GitHub release.
 ## Reporting a page that does not work
 
 Detection is heuristics against markup nobody standardized, so some shops will
-slip through. The popup has **Report this page**, which saves that page's URL to
-a list you can read, copy, and clear from the popup itself.
+slip through. The popup has **It didn't work here**, which saves a note about
+that page: its address, the currency the extension decided the page was priced
+in, how many prices it converted, your settings, the version, and a few of the
+price-shaped strings it left alone. Those samples are the part worth having —
+"a shop in Bolivia failed" is a puzzle, `"Bs21,50"` is an afternoon's fix.
 
-The list lives in `chrome.storage.local` and goes nowhere — no server, no
-account, nothing sent anywhere. It exists in this browser profile only, which
+**Copy** puts the list on the clipboard and **Report on GitHub** opens the issue
+form with it filled in, which is as far as either goes on its own: the text sits
+in a form on your screen until you submit it yourself.
+
+The list lives in `chrome.storage.local` and goes nowhere on its own — no
+server, no account, nothing sent in the background. It exists in this browser
+profile only, which
 also means it does not follow you to another machine.
 
 ## Known limitations

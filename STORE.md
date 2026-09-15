@@ -73,8 +73,9 @@ prepared in this file.
 > • Recognizes currencies that are spelled out rather than signed (340 руб).
 > • Rates come from a public exchange-rate service and are cached for six
 >   hours; refresh them yourself any time from the popup.
-> • Found a shop it misses? "Report this page" keeps the address in a list only
->   you can see, stored in your own browser.
+> • Found a shop it misses? "It didn't work here" keeps a note in a list only
+>   you can see, stored in your own browser — copy it out or open a GitHub
+>   issue with it when you want to.
 >
 > No account, no analytics, no tracking. Your settings stay on your machine and
 > nothing about the pages you visit ever leaves your browser.

@@ -198,6 +198,37 @@
     }
   }
 
+  // A few price-shaped strings the page still shows unconverted, to go with a
+  // report. This is the part a report cannot be written without: knowing that
+  // a page failed says nothing, knowing it says "Bs21,50" says everything.
+  const MISSED_SAMPLES = 5;
+
+  function missedPrices() {
+    const out = [];
+    const seen = new Set();
+    const all = document.body.querySelectorAll("*");
+
+    for (let i = 0; i < all.length && out.length < MISSED_SAMPLES; i++) {
+      const el = all[i];
+      if (el.getElementsByTagName("*").length > SPLIT_MAX_DESCENDANTS) continue;
+      if (shouldSkip(el)) continue;
+      // Already handled, here or in a child.
+      if (el.querySelector(`.${CONV_CLASS}`)) continue;
+
+      const text = el.textContent.replace(/\s+/gu, " ").trim();
+      if (text.length < 2 || text.length > SPLIT_MAX_TEXT) continue;
+      if (!/\d/.test(text)) continue;
+      // A bare number, a percentage or a date is not a price waiting to be
+      // recognized; something that is neither digit nor punctuation is.
+      if (!/[^\d\s.,:%/()\-+]/u.test(text)) continue;
+      if (seen.has(text)) continue;
+
+      seen.add(text);
+      out.push(text);
+    }
+    return out;
+  }
+
   // Undo every annotation so a settings change can be re-applied cleanly.
   function unwrapAll() {
     document.querySelectorAll(`.${CONV_CLASS}`).forEach((el) => el.remove());
@@ -282,6 +313,8 @@
         url: location.href,
         title: document.title,
         converted: document.querySelectorAll(`.${CONV_CLASS}`).length,
+        currency: pageCurrency,
+        missed: missedPrices(),
       });
     }
   });

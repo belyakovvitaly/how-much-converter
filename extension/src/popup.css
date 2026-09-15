@@ -115,3 +115,16 @@ summary {
 #reportItems .when {
   color: var(--muted);
 }
+
+.version {
+  font-size: 11px;
+  font-weight: normal;
+  color: #888;
+  vertical-align: middle;
+}
+
+.note {
+  margin: 0.4em 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
