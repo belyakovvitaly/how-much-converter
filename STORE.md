@@ -88,30 +88,60 @@ prepared in this file.
 
 ## Privacy tab
 
-**Single purpose**
+**Single purpose** — one field, 1,000 characters
 
-> Display the prices already shown on a web page in a currency the user chooses.
+> How Much? has a single purpose: to show the prices already displayed on a web
+> page in a currency the user chooses.
+>
+> The extension reads the text of the page the user is viewing, recognizes
+> amounts written with a currency symbol or an ISO code, converts them using a
+> public exchange-rate table, and appends the converted amount next to the
+> original price. Nothing on the page is replaced, hidden or rewritten; the
+> original price stays exactly as the site wrote it.
+>
+> There is no second feature. It does not block, inject, redirect or modify page
+> content beyond appending that converted amount, and it collects nothing about
+> the user or the pages they visit.
 
 **Justification — `storage`**
 
-> Stores the user's three settings (target currency, what a bare "$" means, and
-> whether conversion is on), caches the exchange-rate table so the extension does
-> not refetch rates on every page load, and holds the list of pages the user
-> marked as not converting correctly. All of it is local; none is transmitted.
+> chrome.storage.local is used for four local things, none of which leave the
+> browser:
+>
+> 1. The user's three settings: the target currency, what a bare "$" should
+>    mean, and whether conversion is switched on.
+> 2. A cache of the exchange-rate table, so the extension does not refetch rates
+>    on every page load. It is refreshed at most every six hours.
+> 3. The list of pages the user marked with "It didn't work here", so they can
+>    review, copy or clear it in the popup. It holds the page address, what the
+>    extension detected, and a few price-shaped strings it failed to convert.
+> 4. Nothing else.
+>
+> All of it stays in the user's own browser profile. None of it is transmitted,
+> and the extension has no server or account to transmit it to.
 
-**Justification — host permission `https://open.er-api.com/*`**
+**Justification — host permissions**
 
-> The extension's only network request. It fetches a public USD-based
-> exchange-rate table used to derive every currency pair as a cross rate. The
-> request contains no user data, no page data, and no identifier.
+The console offers a single host-permission field, so it has to cover both the
+rate endpoint and the `<all_urls>` content script. Answering only for the
+endpoint reads as an omission about the broader one.
 
-**Justification — content script on `<all_urls>`**
-
-> Prices appear on arbitrary shopping, listing, and news sites, and the user
-> cannot enumerate in advance which sites they will want converted — the value
-> of the extension is that it works wherever a price shows up. The content
-> script only reads page text to locate prices and appends a converted amount
-> next to them. It transmits nothing; page content never leaves the browser.
+> The extension needs two kinds of host access, for two clearly separate
+> reasons.
+>
+> https://open.er-api.com/* is the extension's only network request. It fetches
+> a public, USD-based exchange-rate table, which is what makes conversion
+> possible; every currency pair is derived from it as a cross rate. The request
+> carries no user data, no page data and no identifier, and the response is
+> cached locally for six hours.
+>
+> The content script runs on <all_urls> because prices appear on arbitrary
+> shopping, marketplace, listing and news sites, and the user cannot enumerate
+> in advance which sites they will want converted. The value of the extension is
+> that a price is converted wherever it shows up, including on a site the user
+> has never visited before. The script only reads page text to locate prices and
+> appends a converted amount next to them. It sends nothing anywhere: page
+> content never leaves the browser.
 
 **Data usage** — certify that no user data is collected, for every category.
 
