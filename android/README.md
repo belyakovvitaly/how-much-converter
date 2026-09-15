@@ -42,6 +42,25 @@ missing them.
 Frames are not chased at video rate and should not be: recognition runs about
 830 ms a frame on an emulator.
 
+## Frame voting
+
+One frame is not evidence. A recognizer reading a live camera disagrees with
+itself between frames — a price flickers out as a hand moves, comes back a digit
+different — so showing the newest frame's answer would both blink and put every
+momentary misreading on screen.
+
+[`VoteState.observe`](core/src/main/kotlin/converter/core/FrameVoting.kt) scores
+each reading: a point for every frame it appears in, a point off for every frame
+it does not. It has to reach three before it is shown, and then survives until
+its score runs out, which is what stops one blurred frame blanking the display.
+The score is capped, so a price stared at for a minute does not linger for a
+minute after the camera moves on.
+
+What it does not do is adjudicate. Two readings that are both persistent are
+both shown — better that the reader sees the disagreement than that one is
+picked confidently and wrongly. It thins out noise; it does not know which of
+two steady answers is true.
+
 ## Rates
 
 One USD-based table from [open.er-api.com](https://open.er-api.com), cached for

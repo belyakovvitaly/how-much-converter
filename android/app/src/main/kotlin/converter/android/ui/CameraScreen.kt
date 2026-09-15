@@ -40,15 +40,21 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import converter.android.ocr.OcrEngine
 import converter.core.Price
 import converter.core.RateTable
+import converter.core.VoteState
+import converter.core.observe
 import converter.core.convert
 import converter.core.formatConverted
 import converter.core.readPrices
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicLong
 
-/** What the last analysed frame produced. */
+/** What the frames so far agree on. */
 data class FrameState(
+    /** Confirmed by several frames, not just read once — see [VoteState]. */
     val prices: List<Price> = emptyList(),
+    /** How many readings the last frame produced, confirmed or not. */
+    val readLastFrame: Int = 0,
     val framesSeen: Long = 0,
     val lastMillis: Long = 0,
 )
@@ -108,6 +114,9 @@ private fun CameraPreview(engine: OcrEngine, onFrame: (FrameState) -> Unit) {
     // rememberUpdatedState is what keeps the analyser from holding the
     // placeholder for the life of the screen.
     val currentEngine = rememberUpdatedState(engine)
+    // A reading has to be seen in several frames before it is shown. Held in an
+    // AtomicReference because the analyser runs off the main thread.
+    val votes = remember { AtomicReference(VoteState()) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val seen = remember { AtomicLong(0) }
 
@@ -132,9 +141,11 @@ private fun CameraPreview(engine: OcrEngine, onFrame: (FrameState) -> Unit) {
                     try {
                         val lines = currentEngine.value.recognize(image.toBitmap())
                         val prices = readPrices(lines)
+                        val agreed = votes.updateAndGet { it.observe(prices) }
                         onFrame(
                             FrameState(
-                                prices = prices,
+                                prices = agreed.confirmed,
+                                readLastFrame = prices.size,
                                 framesSeen = seen.incrementAndGet(),
                                 lastMillis = System.currentTimeMillis() - started,
                             )
@@ -177,7 +188,7 @@ private fun ReadingPanel(
     ) {
         if (frame.prices.isEmpty()) {
             Text(
-                text = "No price in view",
+                text = if (frame.readLastFrame > 0) "Reading\u2026" else "No price in view",
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium,
             )
@@ -207,7 +218,8 @@ private fun ReadingPanel(
             }
         }
         Text(
-            text = "engine: ${engine.name} · frames: ${frame.framesSeen} · ${frame.lastMillis} ms",
+            text = "engine: ${engine.name} · ${target} · " +
+                "frames: ${frame.framesSeen} · ${frame.lastMillis} ms",
             color = Color(0xFF9E9E9E),
             style = MaterialTheme.typography.bodySmall,
         )
