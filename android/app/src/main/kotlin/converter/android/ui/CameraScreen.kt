@@ -39,6 +39,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import converter.android.ocr.OcrEngine
 import converter.core.Price
+import converter.core.RateTable
+import converter.core.convert
+import converter.core.formatConverted
 import converter.core.readPrices
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
@@ -60,7 +63,12 @@ data class FrameState(
  * a desktop CPU.
  */
 @Composable
-fun CameraScreen(engine: OcrEngine, modifier: Modifier = Modifier) {
+fun CameraScreen(
+    engine: OcrEngine,
+    rates: RateTable?,
+    target: String,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     var granted by remember {
         mutableStateOf(
@@ -79,6 +87,8 @@ fun CameraScreen(engine: OcrEngine, modifier: Modifier = Modifier) {
             ReadingPanel(
                 engine = engine,
                 frame = frame,
+                rates = rates,
+                target = target,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         } else {
@@ -148,7 +158,13 @@ private fun CameraPreview(engine: OcrEngine, onFrame: (FrameState) -> Unit) {
 }
 
 @Composable
-private fun ReadingPanel(engine: OcrEngine, frame: FrameState, modifier: Modifier = Modifier) {
+private fun ReadingPanel(
+    engine: OcrEngine,
+    frame: FrameState,
+    rates: RateTable?,
+    target: String,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier
             .fillMaxWidth()
@@ -167,10 +183,26 @@ private fun ReadingPanel(engine: OcrEngine, frame: FrameState, modifier: Modifie
             )
         } else {
             for (price in frame.prices) {
+                val converted = rates?.convert(price.amount, price.code, target)
                 Text(
-                    text = "${price.amount} ${price.code}",
+                    text = buildString {
+                        append(formatConverted(price.amount, price.code))
+                        // Only when there is a rate for the pair. An unconverted
+                        // price is still worth showing; a made-up one is not.
+                        if (converted != null) {
+                            append("  \u2248  ")
+                            append(formatConverted(converted, target))
+                        }
+                    },
                     color = Color.White,
                     style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            if (rates == null) {
+                Text(
+                    text = "No rates yet — showing what was read",
+                    color = Color(0xFFFFB74D),
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }

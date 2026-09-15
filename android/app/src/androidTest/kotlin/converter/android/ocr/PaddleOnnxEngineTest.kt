@@ -5,6 +5,9 @@ import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import converter.core.Price
+import converter.core.RateTable
+import converter.core.convert
+import converter.core.formatConverted
 import converter.core.findPrices
 import converter.core.readPrices
 import org.json.JSONArray
@@ -90,6 +93,32 @@ class PaddleOnnxEngineTest {
             hits >= 25,
         )
         assertEquals("unexpected miss count\n$report", 1, misses)
+    }
+
+    @Test
+    fun convertsAPriceItReadOffAPhoto() {
+        // The whole chain in one place: pixels to a recognized line, a line to
+        // an amount and a currency, and that pair to what a user would read.
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val bitmap = context.assets.open("bench/01-price-tag.png").use {
+            BitmapFactory.decodeStream(it)
+        }
+        val prices = readPrices(engine.recognize(bitmap))
+        bitmap.recycle()
+
+        val price = prices.single()
+        assertEquals("RUB", price.code)
+        assertEquals(1299.0, price.amount, 0.001)
+
+        // A fixed table, so the test says nothing about the network: 92 roubles
+        // and 0.92 euro to the dollar makes 1299 roubles 12.99 euro.
+        val rates = RateTable(
+            base = "USD",
+            rates = mapOf("USD" to 1.0, "RUB" to 92.0, "EUR" to 0.92),
+            fetchedAt = 0,
+        )
+        val converted = rates.convert(price.amount, price.code, "EUR")
+        assertEquals("12.99 EUR", formatConverted(converted!!, "EUR"))
     }
 
     companion object {

@@ -4,10 +4,11 @@ plugins {
 }
 
 dependencies {
-    // The core itself stays dependency-free. JSON is only needed to replay the
-    // benchmark's recorded engine output in tests.
+    // The rate service speaks JSON, and kotlinx-serialization is the one
+    // dependency that follows this module to iOS unchanged.
+    implementation(libs.kotlinx.serialization.json)
+
     testImplementation(kotlin("test"))
-    testImplementation(libs.kotlinx.serialization.json)
 }
 
 kotlin {

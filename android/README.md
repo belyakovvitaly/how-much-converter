@@ -42,6 +42,27 @@ missing them.
 Frames are not chased at video rate and should not be: recognition runs about
 830 ms a frame on an emulator.
 
+## Rates
+
+One USD-based table from [open.er-api.com](https://open.er-api.com), cached for
+six hours, every pair derived from it as a cross rate — the same arrangement
+`extension/src/background.js` uses, and the same free service.
+
+The policy lives in `:core` as [`resolveRates`](core/src/main/kotlin/converter/core/Rates.kt),
+which takes the fetch as an argument rather than performing it. That is what
+makes the interesting part testable without a network: a fresh cache is used
+without a request, a forced refresh ignores freshness, and a failed fetch falls
+back to the old table rather than to nothing — yesterday's rate is a good
+answer, and no answer is not. A response that parses to nothing counts as a
+failure, not as rates.
+
+`RatesRepository` in `:app` supplies the network and the storage, and nothing
+else. It keeps the response as the raw JSON it arrived as, so there is only one
+parser to agree with.
+
+Until there is a setting for it, the target currency is the one belonging to the
+device's locale, falling back to USD.
+
 ## The engine
 
 [`PaddleOnnxEngine`](app/src/main/kotlin/converter/android/ocr/PaddleOnnxEngine.kt)
