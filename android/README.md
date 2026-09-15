@@ -30,6 +30,20 @@ they are build outputs, not sources, so they are not committed:
 ./tools/export-ocr-models.py     # writes det.onnx, rec.onnx, charset.txt
 ```
 
+To put it on a phone, the debug APK is enough: it is signed with the debug key,
+so it sideloads without a keystore.
+
+```sh
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+It comes to about 61 MB, most of it ONNX Runtime's native library and 12.7 MB
+of models. The build keeps only `arm64-v8a`: four copies of that library made a
+166 MB APK, and every phone this can run on is 64-bit ARM, as is the emulator on
+an Apple Silicon Mac. An Intel-host emulator would need `x86_64` adding back in
+`app/build.gradle.kts`.
+
 ## What `:app` does today
 
 Camera preview, frames analysed one at a time on a background thread with only

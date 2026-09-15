@@ -14,6 +14,14 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            // ONNX Runtime ships a large native library for every ABI, and four
+            // copies of it is 135 MB of a 166 MB APK. Every phone this could run
+            // on is 64-bit ARM, and so is the emulator on an Apple Silicon Mac.
+            // Add x86_64 back if an Intel-host emulator is ever needed.
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildTypes {
