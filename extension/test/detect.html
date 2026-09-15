@@ -90,6 +90,8 @@
           ["ccTLD, Switzerland", () => detect("", "www.digitec.ch", "de"), "CHF"],
           ["ccTLD, Bulgaria is on the euro", () => detect("", "shop.bg", "bg"), "EUR"],
           ["generic .com says nothing on its own", () => detect("", "takealot.com", "en"), null],
+          ["ccTLD carries an English page (supermarket.am)",
+            () => detect("", "supermarket.am", "en"), "AMD"],
 
           // --- inferred from the language ---
           ["lang region beats the language", () => detect("", "takealot.com", "en-ZA"), "ZAR"],

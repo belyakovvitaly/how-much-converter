@@ -69,6 +69,11 @@ const SYMBOL_TO_CODE = {
   "円": "JPY",
   "원": "KRW",
   "บาท": "THB",
+  "֏": "AMD",
+  // Armenia writes the dram out: "դր." at home, "dr" on an English page.
+  "դր.": "AMD",
+  "դր": "AMD",
+  "dr": "AMD",
   // Sweden's way of saying "kronor, and no öre": 429:- is 429 kr. There is no
   // currency in the text at all, so only the page's own country can say which
   // krona it is.
@@ -87,6 +92,7 @@ const SYMBOL_TO_CODE = {
 // popup's dropdowns.
 const CURRENCY_NAMES = {
   AED: "UAE dirham",
+  AMD: "Armenian dram",
   ARS: "Argentine peso",
   AUD: "Australian dollar",
   BGN: "Bulgarian lev",
@@ -182,6 +188,18 @@ const AMBIGUOUS_SYMBOLS = {
   R: ["ZAR"],
   元: ["CNY", "TWD"],
   ":-": ["SEK", "NOK", "DKK"],
+  // "5 dr" is a dose as often as it is a price.
+  dr: ["AMD"],
+};
+
+// ISO codes that are also the name of something common enough to outnumber the
+// currency in ordinary text. Like the ambiguous symbols, these are read as
+// money only where the page is priced in them: "PHP 8.2" is a version number
+// everywhere except the Philippines, and "AMD 5600" a processor everywhere
+// except Armenia.
+const AMBIGUOUS_CODES = {
+  AMD: ["AMD"],
+  PHP: ["PHP"],
 };
 
 // Two tokens are too common in ordinary text to be matched on their own, and
@@ -212,7 +230,8 @@ const TOKEN_PATTERNS = {
 // its shops price in. Only currencies this extension can convert are listed:
 // a country whose currency it does not know is better left undetected.
 const COUNTRY_TO_CURRENCY = {
-  ae: "AED", ar: "ARS", au: "AUD", bo: "BOB", br: "BRL", ca: "CAD",
+  ae: "AED", am: "AMD", ar: "ARS", au: "AUD", bo: "BOB", br: "BRL",
+  ca: "CAD",
   ch: "CHF", cl: "CLP", cn: "CNY", co: "COP", cr: "CRC", cu: "CUP",
   cz: "CZK", dk: "DKK", do: "DOP", ec: "USD", eg: "EGP", gb: "GBP",
   ge: "GEL", gt: "GTQ", hk: "HKD", hu: "HUF", id: "IDR", il: "ILS",
@@ -491,7 +510,8 @@ const CODES_NEEDING_CAPITALS = new Set([
 // in a script that does not space its words — 円, 원, บาท — must not be fenced,
 // because the character right after it is usually another letter and the fence
 // would reject every real price.
-const SPACED_SCRIPT = /[\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Greek}]/u;
+const SPACED_SCRIPT =
+  /[\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Greek}\p{Script=Armenian}\p{Script=Hebrew}]/u;
 
 // <currency><number> or <number><currency>, anywhere in a run of text.
 function buildPriceRegExp() {
@@ -533,10 +553,13 @@ function buildPriceRegExp() {
 // caller then leaves the price alone.
 function resolveSymbol(token, context) {
   if (!token) return null;
-  const code = SYMBOL_TO_CODE[token];
-  if (!code) return context.isKnownCode(token);
+  const fromSymbol = SYMBOL_TO_CODE[token];
+  const code = fromSymbol ?? context.isKnownCode(token);
+  if (!code) return null;
 
-  const options = AMBIGUOUS_SYMBOLS[token];
+  const options = fromSymbol
+    ? AMBIGUOUS_SYMBOLS[token]
+    : AMBIGUOUS_CODES[code];
   if (!options) return code;
 
   // The "$" setting is a manual override; on "auto" it defers to the page like
