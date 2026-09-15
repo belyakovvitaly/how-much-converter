@@ -1,7 +1,26 @@
 # Android app
 
-Not written yet. This file records the decisions the first commit should start
-from, so the measurements behind them do not have to be repeated.
+The app itself is not written yet. What exists is `core` — the price rules,
+in plain Kotlin, held to the OCR benchmark's numbers.
+
+```sh
+./gradlew :core:test
+```
+
+`core` is deliberately off the Android SDK: these rules are what Android and
+iOS share, and keeping them on plain Kotlin/JVM means they can be tested with a
+JDK alone. `BenchCorpusTest` replays the engine output recorded in
+`tools/ocr-bench` through this port and holds it to what was measured there —
+Vision at 25 of 26 prices with nothing invented, PaddleOCR reaching the same
+only with both mitigations below, and neither mitigation enough on its own.
+
+`CurrencyTables.kt` is generated from the extension's own `currency.js` by
+[`tools/gen-currency-kt.py`](../tools/gen-currency-kt.py) — the two cannot
+agree about what a currency token is if the tables are copied by hand. Change
+the JavaScript and regenerate; `--check` fails when the file is stale.
+
+The rest of this file records the decisions the app should start from, so the
+measurements behind them do not have to be repeated.
 
 ## OCR engine: PaddleOCR
 
