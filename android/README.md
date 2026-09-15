@@ -23,21 +23,52 @@ emulator -avd how-much -camera-back virtualscene    # a scene with things to poi
 ./gradlew :app:installDebug
 ```
 
+Before the app will build, the OCR models have to be exported into its assets —
+they are build outputs, not sources, so they are not committed:
+
+```sh
+./tools/export-ocr-models.py     # writes det.onnx, rec.onnx, charset.txt
+```
+
 ## What `:app` does today
 
 Camera preview, frames analysed one at a time on a background thread with only
 the newest kept, each one passed through [`OcrEngine`](app/src/main/kotlin/converter/android/ocr/OcrEngine.kt)
 and then through `:core`, with whatever prices come out listed under the
-viewfinder.
+viewfinder. The UI names the running engine and warns when that engine cannot
+read Cyrillic, because a Latin-only recognizer corrupts those prices instead of
+missing them.
 
-The engine in place is `UnwiredEngine`, which reads nothing. That is deliberate
-rather than unfinished: it makes the camera path verifiable on its own, and an
-engine returning plausible rubbish would be worse than one returning none. The
-UI says which engine is running and warns when that engine cannot read Cyrillic,
-because a Latin-only recognizer corrupts those prices instead of missing them.
+Frames are not chased at video rate and should not be: recognition runs about
+830 ms a frame on an emulator.
 
-Frames are not chased at video rate and should not be — the benchmark put
-PaddleOCR's mobile configuration near 800 ms a frame on a desktop CPU.
+## The engine
+
+[`PaddleOnnxEngine`](app/src/main/kotlin/converter/android/ocr/PaddleOnnxEngine.kt)
+runs PP-OCRv5's mobile detector and the East Slavic recognizer through **ONNX
+Runtime** — not Paddle Lite, which has no official Android artifact on Maven
+Central; what is published there under that name is third-party repackaging.
+
+Only what needs Android stays in `:app`: bitmaps and tensors. The parts that can
+be tested without a device are in `:core` — `detectBoxes` for the detector's
+probability map and `ctcDecode` for the recognizer's output.
+
+Two simplifications, both measured rather than assumed:
+
+- **Axis-aligned boxes, not rotated ones.** PaddleOCR fits minimum-area
+  rectangles, which needs OpenCV. The price rules only ever ask which boxes
+  share a line, so the rotation is never read.
+- **Flood fill, not contour tracing**, for the same reason.
+
+`PaddleOnnxEngineTest` runs the engine on a device over the benchmark's own
+twelve images and holds it to the desktop pipeline's result: 25 of the 26
+prices, nothing invented. Its one miss is the hryvnia case, where `₴1 200,50`
+is read as `21 200,50` — the prefix glyph swallowed into the number, which is
+the failure the safety rule above exists for.
+
+```sh
+./gradlew :app:connectedDebugAndroidTest
+```
 
 `core` is deliberately off the Android SDK: these rules are what Android and
 iOS share, and keeping them on plain Kotlin/JVM means they can be tested with a

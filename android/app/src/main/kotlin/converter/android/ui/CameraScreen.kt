@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,6 +93,11 @@ fun CameraScreen(engine: OcrEngine, modifier: Modifier = Modifier) {
 @Composable
 private fun CameraPreview(engine: OcrEngine, onFrame: (FrameState) -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
+    // The analyser is built once, inside AndroidView's factory, but the engine
+    // is swapped in later when its models finish loading. Reading it through
+    // rememberUpdatedState is what keeps the analyser from holding the
+    // placeholder for the life of the screen.
+    val currentEngine = rememberUpdatedState(engine)
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val seen = remember { AtomicLong(0) }
 
@@ -114,7 +120,7 @@ private fun CameraPreview(engine: OcrEngine, onFrame: (FrameState) -> Unit) {
                 analysis.setAnalyzer(analysisExecutor) { image ->
                     val started = System.currentTimeMillis()
                     try {
-                        val lines = engine.recognize(image.toBitmap())
+                        val lines = currentEngine.value.recognize(image.toBitmap())
                         val prices = readPrices(lines)
                         onFrame(
                             FrameState(
