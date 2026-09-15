@@ -197,13 +197,15 @@ class PaddleOnnxEngineTest {
     }
 
     @Test
-    fun readsNothingFromASidewaysFrame() {
-        // Why the camera has to turn its frames upright before handing them
-        // over. A phone's back camera is mounted sideways, so held upright it
-        // delivers the scene rotated ninety degrees — and the recognizer has no
-        // model for rotated text. The app shipped once without that rotation and
-        // read nothing at all, which no test here caught, because every test
-        // feeds a bitmap that is already the right way up.
+    fun readsASidewaysFrameNowThatBoxesFollowTheText() {
+        // This test used to assert the opposite, and was right to: before boxes
+        // were fitted to the direction the text runs, a frame rotated ninety
+        // degrees read as nothing, and the app shipped once doing exactly that.
+        // Fitting the angle fixed the general case and this one with it.
+        //
+        // The camera still turns its frames upright, for a different reason:
+        // the overlay draws labels in the frame's coordinates, and in a
+        // sideways frame they would be drawn sideways too.
         val context = InstrumentationRegistry.getInstrumentation().context
         val upright = context.assets.open("bench/01-price-tag.png").use {
             BitmapFactory.decodeStream(it)
@@ -223,10 +225,7 @@ class PaddleOnnxEngineTest {
         Log.i(TAG, "upright: $fromUpright   sideways: $fromSideways")
 
         assertEquals(listOf(Price(1299.0, "RUB")), fromUpright)
-        assertTrue(
-            "a sideways frame should read as nothing, not as $fromSideways",
-            fromSideways.isEmpty(),
-        )
+        assertEquals("a sideways frame should read the same", fromUpright, fromSideways)
     }
 
     @Test
@@ -267,6 +266,57 @@ class PaddleOnnxEngineTest {
 
             assertTrue("$case found no prices at all", seen.isNotEmpty())
         }
+    }
+
+    @Test
+    fun readsATagThatIsNotSquareToTheCamera() {
+        // A shelf is usually seen from the side. Before the crop was turned
+        // upright this did not merely fail — it produced a plausible wrong
+        // number, which is the one outcome this project refuses: at eight
+        // degrees "$ 3.648,75" read as 1648, and obliquely as 38648.
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val wanted = Price(3648.75, "ARS")
+
+        for (case in listOf("flat", "tilt-8", "tilt-15", "tilt-25")) {
+            val bitmap = context.assets.open("regression/$case.png").use {
+                BitmapFactory.decodeStream(it)
+            }
+            engine.reset()
+            val lines = engine.recognize(bitmap)
+            val prices = readPrices(lines, PriceContext(pageCurrency = "ARS"))
+            bitmap.recycle()
+
+            Log.i(TAG, "$case: ${lines.map { it.text }} -> $prices")
+
+            val wrong = prices.filter { it != wanted }
+            assertTrue("$case invented $wrong from ${lines.map { it.text }}", wrong.isEmpty())
+            assertTrue("$case read no price at all: ${lines.map { it.text }}", wanted in prices)
+        }
+    }
+
+    @Test
+    fun severePerspectiveIsStillMisread() {
+        // The limit of fitting one angle to a region: a tag seen at thirty
+        // degrees is not merely rotated, it is foreshortened, and no single
+        // rotation undoes that. Rotating still helps — the same fixture used to
+        // read "$ 3.648,75" as 38648 and now reads 3.64 — but it is still wrong,
+        // and this records that rather than pretending otherwise.
+        //
+        // Undoing it properly needs the region's quadrilateral and a
+        // perspective warp, which connected components do not give.
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val bitmap = context.assets.open("regression/oblique.png").use {
+            BitmapFactory.decodeStream(it)
+        }
+        engine.reset()
+        val prices = readPrices(engine.recognize(bitmap), PriceContext(pageCurrency = "ARS"))
+        bitmap.recycle()
+
+        Log.i(TAG, "oblique (known limit): $prices")
+        assertTrue(
+            "oblique now reads correctly — the limit has moved, update this test",
+            Price(3648.75, "ARS") !in prices,
+        )
     }
 
     companion object {

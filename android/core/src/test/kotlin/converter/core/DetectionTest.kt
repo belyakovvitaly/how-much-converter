@@ -117,4 +117,102 @@ class DetectionTest {
         assertEquals(1, found.size)
         assertEquals(Box(0.0, 0.0, width.toDouble(), height.toDouble()), found.single().box)
     }
+
+    // --- how a region sits --------------------------------------------------
+    private fun degrees(detection: Detection) = Math.toDegrees(detection.rotated.angle)
+
+    @Test
+    fun `a horizontal line of text is read as upright`() {
+        val (probs, w, h) = map(
+            "........",
+            "########",
+            "........",
+        )
+        val found = detectBoxes(probs, w, h, DetectionSettings(unclipRatio = 0f)).single()
+        assertEquals(0.0, degrees(found), 1.0)
+    }
+
+    @Test
+    fun `a line running downhill is read as tilted, and by how much`() {
+        // A staircase at roughly 45 degrees.
+        val (probs, w, h) = map(
+            "##......",
+            "###.....",
+            ".###....",
+            "..###...",
+            "...###..",
+            "....###.",
+            ".....###",
+            "......##",
+        )
+        val found = detectBoxes(probs, w, h, DetectionSettings(unclipRatio = 0f)).single()
+        assertEquals(45.0, degrees(found), 8.0)
+    }
+
+    @Test
+    fun `a line running uphill tilts the other way`() {
+        val (probs, w, h) = map(
+            "......##",
+            ".....###",
+            "....###.",
+            "...###..",
+            "..###...",
+            ".###....",
+            "###.....",
+            "##......",
+        )
+        val found = detectBoxes(probs, w, h, DetectionSettings(unclipRatio = 0f)).single()
+        assertEquals(-45.0, degrees(found), 5.0)
+    }
+
+    @Test
+    fun `a blob with no direction is left upright rather than guessed at`() {
+        // A single character or a speck has no reading direction, and a
+        // confidently wrong angle would turn a readable crop into a diagonal one.
+        val (probs, w, h) = map(
+            "####",
+            "####",
+            "####",
+            "####",
+        )
+        val found = detectBoxes(probs, w, h, DetectionSettings(unclipRatio = 0f)).single()
+        assertEquals(0.0, degrees(found), 0.001)
+    }
+
+    @Test
+    fun `the upright bounds contain the whole tilted region`() {
+        val (probs, w, h) = map(
+            "##......",
+            "###.....",
+            ".###....",
+            "..##....",
+        )
+        val found = detectBoxes(probs, w, h, DetectionSettings(unclipRatio = 0f)).single()
+        assertTrue(found.box.x0 <= 0.5, "left edge cut off: ${found.box}")
+        assertTrue(found.box.y0 <= 0.5, "top edge cut off: ${found.box}")
+        assertTrue(found.box.x1 >= 3.5, "right edge cut off: ${found.box}")
+        assertTrue(found.box.y1 >= 3.5, "bottom edge cut off: ${found.box}")
+    }
+
+    @Test
+    fun `a tilted line is narrower than its upright bounds`() {
+        // The point of the whole exercise: the rotated rectangle hugs the text,
+        // while the upright one has to hold the diagonal and is mostly
+        // background.
+        val (probs, w, h) = map(
+            "##......",
+            "###.....",
+            ".###....",
+            "..###...",
+            "...###..",
+            "....###.",
+            ".....###",
+            "......##",
+        )
+        val found = detectBoxes(probs, w, h, DetectionSettings(unclipRatio = 0f)).single()
+        assertTrue(
+            found.rotated.height < (found.box.y1 - found.box.y0) * 0.75,
+            "the rotated box is no tighter than the upright one: ${found.rotated}",
+        )
+    }
 }

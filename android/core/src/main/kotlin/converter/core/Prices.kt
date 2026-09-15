@@ -63,7 +63,13 @@ fun buildPriceRegex(extraTokens: Collection<String> = emptyList()): Regex {
         "(?:(?<!\\p{L})(?:${fenced.joinToString("|")}|$codes)(?!\\p{L})" +
         "|(?:${bare.joinToString("|")}))"
 
-    return Regex("($currency)\\s?($NUMBER)|($NUMBER)\\s?($currency)")
+    // A token touching the number after it belongs to that number, not to the
+    // one before it. OCR drops a "%" readily, and "25% $3.648,75" arriving as
+    // "25 $3.648,75" would otherwise read as twenty-five pesos alongside the
+    // real price — an invented price, which is the one thing this must not do.
+    // Only a token with no space after it is claimed this way, so a row of
+    // prices ("180 ₽ 290 ₽") still reads as two.
+    return Regex("($currency)\\s?($NUMBER)|($NUMBER)\\s?($currency)(?!\\d)")
 }
 
 /** Built once: the alternation runs to thousands of characters. */

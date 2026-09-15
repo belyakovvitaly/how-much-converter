@@ -5,9 +5,13 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Paint
 import converter.core.Box
 import converter.core.OcrLine
 import converter.core.TrackedLine
+import converter.core.RotatedBox
 import converter.core.TrackerState
 import converter.core.ctcDecode
 import converter.core.detectBoxes
@@ -122,10 +126,16 @@ class PaddleOnnxEngine private constructor(
         // because the tracker carries it.
         val minHeight = frame.height * MIN_TEXT_HEIGHT
         val ordered = detections
-            .map { it to it.box.scaleTo(scale.x, scale.y, frame.width, frame.height) }
-            .sortedByDescending { (_, box) -> box.height }
+            .map { detection ->
+                Triple(
+                    detection.box.scaleTo(scale.x, scale.y, frame.width, frame.height),
+                    detection.rotated.scaledBy(scale.x, scale.y),
+                    detection,
+                )
+            }
+            .sortedByDescending { (box, _, _) -> box.height }
 
-        for ((_, box) in ordered) {
+        for ((box, tilted, _) in ordered) {
 
             val previous = tracker.reuseFor(box)
             if (previous != null) {
@@ -148,7 +158,7 @@ class PaddleOnnxEngine private constructor(
                 continue
             }
 
-            val crop = crop(frame, box) ?: continue
+            val crop = crop(frame, tilted) ?: continue
             val reading = read(crop)
             crop.recycle()
             if (reading == null || reading.text.isBlank()) continue
@@ -252,30 +262,52 @@ class PaddleOnnxEngine private constructor(
     }
 
     /**
-     * Cuts the box out of the frame, with room to its left and right.
+     * Cuts the region out of the frame and turns it upright.
      *
-     * The side room is not cosmetic. A currency glyph standing in front of the
+     * The rotation is not a refinement. A tag photographed from the side has
+     * its text running diagonally through an upright crop, and the recognizer
+     * has no model for that — it returns a plausible wrong number rather than
+     * nothing: at eight degrees "$ 3.648,75" read as 1648, and obliquely as
+     * 38648.
+     *
+     * The side room is not cosmetic either. A currency glyph in front of the
      * digits sits at the very edge of the detector's box, where the recognizer
-     * reads it worst — and reading it *wrong* is far more costly than missing
-     * it, because a glyph misread as a digit fuses into the number: "₴1 200,50
-     * грн" came back as "21 200,50 грн", a price seventeen times too large,
-     * with its currency still attached so nothing downstream could refuse it.
-     *
-     * A third of the text's height of margin changes that failure into a safe
-     * one — the glyph comes back as a letter or not at all, and the number is
-     * intact. Measured across the prefix-written symbols (₴ ₹ ¥ ₩ $ € £): it
-     * costs nothing on the benchmark corpus, and more margin than this starts
-     * losing readings.
+     * reads it worst, and reading it wrong is what fuses it into the number.
+     * A third of the text's height of margin turns that failure into a safe one.
      */
-    private fun crop(frame: Bitmap, box: Box): Bitmap? {
-        val margin = (box.height * SIDE_MARGIN).toInt()
-        val x = (box.x0.toInt() - margin).coerceIn(0, frame.width - 1)
-        val right = (box.x1.toInt() + margin).coerceIn(0, frame.width)
-        val y = box.y0.toInt().coerceIn(0, frame.height - 1)
-        val width = (right - x).coerceAtMost(frame.width - x)
-        val height = (box.y1 - box.y0).toInt().coerceAtMost(frame.height - y)
+    private fun crop(frame: Bitmap, region: RotatedBox): Bitmap? {
+        val margin = region.height * SIDE_MARGIN
+        val width = (region.width + margin * 2).toInt()
+        val height = region.height.toInt()
         if (width < MIN_CROP || height < MIN_CROP) return null
-        return Bitmap.createBitmap(frame, x, y, width, height)
+        if (width > frame.width * 4 || height > frame.height * 4) return null
+
+        val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val matrix = Matrix().apply {
+            postTranslate(-region.centerX.toFloat(), -region.centerY.toFloat())
+            postRotate(Math.toDegrees(-region.angle).toFloat())
+            postTranslate(width / 2f, height / 2f)
+        }
+        Canvas(out).drawBitmap(frame, matrix, Paint(Paint.FILTER_BITMAP_FLAG))
+        return out
+    }
+
+    /**
+     * The same region in the source image's pixels.
+     *
+     * The two axes are scaled by almost the same factor — they differ only by
+     * the detector rounding each side to a multiple of 32 — so the extents take
+     * the mean and the angle is carried across unchanged.
+     */
+    private fun RotatedBox.scaledBy(scaleX: Double, scaleY: Double): RotatedBox {
+        val mean = (scaleX + scaleY) / 2
+        return RotatedBox(
+            centerX = centerX * scaleX,
+            centerY = centerY * scaleY,
+            width = width * mean,
+            height = height * mean,
+            angle = angle,
+        )
     }
 
     override fun close() {

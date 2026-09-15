@@ -4,6 +4,36 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+/** Which number a currency token belongs to, when it could be either. */
+class PriceBindingTest {
+
+    @Test
+    fun `a symbol touching the next number belongs to it`() {
+        // "25% $3.648,75" with the percent sign lost, which OCR does readily.
+        // Reading the "$" backwards would invent a price of twenty-five.
+        assertEquals(
+            listOf(Price(3648.75, "ARS")),
+            findPrices("25 $3.648,75", PriceContext(pageCurrency = "ARS")),
+        )
+    }
+
+    @Test
+    fun `a row of prices still reads as several`() {
+        // The guard only claims a token with no space after it, so this is
+        // unaffected.
+        assertEquals(
+            listOf(Price(180.0, "RUB"), Price(290.0, "RUB")),
+            findPrices("180 ₽ 290 ₽"),
+        )
+    }
+
+    @Test
+    fun `a trailing symbol is still read when nothing follows`() {
+        assertEquals(listOf(Price(1299.0, "RUB")), findPrices("1 299 ₽"))
+        assertEquals(listOf(Price(450.0, "UAH")), findPrices("450 грн"))
+    }
+}
+
 /**
  * Where each price sits, so a conversion can be drawn over it rather than
  * listed elsewhere on the screen.

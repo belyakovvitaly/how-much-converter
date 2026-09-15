@@ -247,12 +247,24 @@ Only what needs Android stays in `:app`: bitmaps and tensors. The parts that can
 be tested without a device are in `:core` — `detectBoxes` for the detector's
 probability map and `ctcDecode` for the recognizer's output.
 
-Two simplifications, both measured rather than assumed:
+**Flood fill, not contour tracing**, so there is no OpenCV — and each region is
+fitted with a rotated rectangle rather than an upright one, because a shelf is
+usually seen from the side.
 
-- **Axis-aligned boxes, not rotated ones.** PaddleOCR fits minimum-area
-  rectangles, which needs OpenCV. The price rules only ever ask which boxes
-  share a line, so the rotation is never read.
-- **Flood fill, not contour tracing**, for the same reason.
+That rotation started as a simplification in the other direction, and the
+benchmark supported it: on a corpus of near-upright text, upright boxes cost
+nothing. A real shop said otherwise, and not by failing quietly. At eight
+degrees `$ 3.648,75` read as **1648**, and obliquely as **38648** — a plausible
+wrong price, the one outcome this project refuses. The direction now comes from
+the region's second moments and the extents from projecting its pixels onto it,
+so the crop handed to the recognizer is upright. A region not clearly longer
+than it is wide keeps its angle at zero: a single character has no reading
+direction, and a confident wrong angle is worse than none.
+
+Tilts of eight, fifteen and twenty-five degrees now read correctly and invent
+nothing. Thirty degrees of *perspective* still misreads — foreshortening is not
+rotation, and no single angle undoes it. `severePerspectiveIsStillMisread`
+records that rather than papering over it.
 
 `PaddleOnnxEngineTest` runs the engine on a device over the benchmark's own
 twelve images and holds it to the desktop pipeline's result: 25 of the 26
