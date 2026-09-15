@@ -26,9 +26,15 @@ Vision needs neither the homoglyph table nor box merging to reach its score, but
 both belong in the shared layer anyway: PaddleOCR cannot reach the same number
 without them, and Vision is not harmed by them. The safety rule applies equally
 — a prefix symbol can be read as a digit and fuse into the number, so treat a
-prefix glyph touching a number as suspect and gate on confidence. Vision's own
-confidence is a usable signal: on the bench it dropped to 0.5 on exactly the
-lines carrying `₽`, flagging its own shaky readings.
+prefix glyph touching a number as suspect.
+
+**Vision's confidence is not the signal it looks like.** An earlier draft of
+this file claimed it was, on the grounds that it drops to 0.5 on exactly the
+lines carrying `₽`. Measured, those low-confidence lines are all *correct*, and
+discarding them costs five of the 25 prices while removing nothing wrong.
+Confidence marks where the glyph was unusual, not where the reading was bad —
+see the safety section in [`../android/README.md`](../android/README.md) and
+`ConfidenceGateTest` in the shared core.
 
 ## Shared with Android
 

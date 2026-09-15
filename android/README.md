@@ -62,8 +62,16 @@ Never show a conversion that might be wrong — a missed price is a feature that
 did not fire, a wrong one is a lie about what something costs. The one shape
 that yields a plausible wrong amount is a prefix symbol read as a digit and
 fused into the number: `₴1 200,50` comes back as `21 200,50`. Treat a prefix
-glyph touching a number as suspect, gate on recognizer confidence, and for live
-camera require the same reading across several frames before drawing it.
+glyph touching a number as suspect, and for live camera require the same
+reading across several frames before drawing it.
+
+**Not by gating on confidence.** That was the plan until it was measured, and
+the corpus says the recognizers are confident when they are wrong and hesitant
+when they are right: Tesseract reports its one invented price at 0.90, while
+the seven Vision lines sitting at 0.50 are all correct. No threshold removes a
+wrong reading before it starts removing right ones — gating Vision above 0.5
+costs five real prices and removes nothing. `ConfidenceGateTest` holds that
+measurement so the idea is not quietly reintroduced.
 
 ## Performance
 

@@ -103,14 +103,26 @@ fun mergeBoxes(lines: List<OcrLine>): List<String> {
  * [homoglyphs] is on by default because no recognizer this project measured
  * gets the currency glyphs right on its own, and [merge] because a large price
  * is routinely split in two.
+ *
+ * [minConfidence] defaults to off, and the benchmark is why. A confidence gate
+ * looks like the obvious guard against a wrong price and is not one: on the
+ * corpus it never removes a wrong reading before it starts removing right ones.
+ * Tesseract's one invented price — "799 руб." read as "199 руб." — is reported
+ * at 0.90 confidence, while the seven Vision lines that sit at 0.50 are all
+ * correct. Gating Vision above 0.5 costs five real prices and removes nothing.
+ * ConfidenceGateTest pins that, so the idea is not quietly reintroduced.
  */
 fun readPrices(
     lines: List<OcrLine>,
     context: PriceContext = PriceContext(),
     merge: Boolean = true,
     homoglyphs: Boolean = true,
+    minConfidence: Double = 0.0,
 ): List<Price> {
-    val texts = if (merge) mergeBoxes(lines) else lines.map { it.text }
+    // Filtered before merging: a dropped fragment must not join a group either.
+    val kept = if (minConfidence > 0.0) lines.filter { it.confidence >= minConfidence }
+               else lines
+    val texts = if (merge) mergeBoxes(kept) else kept.map { it.text }
     val resolved = if (homoglyphs) {
         PriceContext(
             pageCurrency = context.pageCurrency,
