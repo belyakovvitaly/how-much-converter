@@ -92,6 +92,8 @@
           ["generic .com says nothing on its own", () => detect("", "takealot.com", "en"), null],
           ["ccTLD carries an English page (supermarket.am)",
             () => detect("", "supermarket.am", "en"), "AMD"],
+          ["ccTLD under a second level, Bolivia (amarket.com.bo)",
+            () => detect("", "amarket.com.bo", "es"), "BOB"],
 
           // --- inferred from the language ---
           ["lang region beats the language", () => detect("", "takealot.com", "en-ZA"), "ZAR"],

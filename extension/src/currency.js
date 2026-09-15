@@ -69,6 +69,9 @@ const SYMBOL_TO_CODE = {
   "円": "JPY",
   "원": "KRW",
   "บาท": "THB",
+  // Bolivia and Venezuela both abbreviate to "Bs" — boliviano and bolívar.
+  "Bs.": "BOB",
+  "Bs": "BOB",
   "֏": "AMD",
   // Armenia writes the dram out: "դր." at home, "dr" on an English page.
   "դր.": "AMD",
@@ -190,6 +193,8 @@ const AMBIGUOUS_SYMBOLS = {
   ":-": ["SEK", "NOK", "DKK"],
   // "5 dr" is a dose as often as it is a price.
   dr: ["AMD"],
+  "Bs.": ["BOB", "VES"],
+  Bs: ["BOB", "VES"],
 };
 
 // ISO codes that are also the name of something common enough to outnumber the

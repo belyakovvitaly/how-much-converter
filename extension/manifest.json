@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "How Much? — Currency Price Converter",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Converts prices on any web page into your preferred currency.",
   "homepage_url": "https://github.com/belyakovvitaly/how-much-converter",
   "permissions": ["storage"],
