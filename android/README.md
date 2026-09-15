@@ -13,6 +13,16 @@ The build needs an Android SDK with API 37 and build-tools 36. Gradle finds it
 through `ANDROID_HOME` or a `local.properties` holding `sdk.dir=...`; that file
 is per-machine and stays out of the repository.
 
+To run it on an emulator, an image and a device are enough — there is no API 37
+system image yet, and none is needed, since `minSdk` is 26:
+
+```sh
+sdkmanager "system-images;android-36;google_apis;arm64-v8a"
+avdmanager create avd -n how-much -k "system-images;android-36;google_apis;arm64-v8a" -d pixel_7
+emulator -avd how-much -camera-back virtualscene    # a scene with things to point at
+./gradlew :app:installDebug
+```
+
 ## What `:app` does today
 
 Camera preview, frames analysed one at a time on a background thread with only
