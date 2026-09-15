@@ -85,6 +85,23 @@ def symbol_to_code():
     return out
 
 
+def currency_names():
+    """CURRENCY_NAMES, for a picker that has to show more than a code."""
+    body = block("CURRENCY_NAMES")
+    names = dict(re.findall(r'^\s*([A-Z]{3}):\s*"((?:[^"\\]|\\.)*)"', body, re.M))
+    if not names:
+        sys.exit("CURRENCY_NAMES parsed empty")
+    return {code: js_string(name) for code, name in names.items()}
+
+
+def code_by_region(name):
+    """A two-letter key to a currency: COUNTRY_TO_CURRENCY or LANG_TO_CURRENCY."""
+    pairs = re.findall(r'\b([a-z]{2}):\s*"([A-Z]{3})"', block(name))
+    if not pairs:
+        sys.exit(f"{name} parsed empty")
+    return dict(pairs)
+
+
 def currency_codes():
     body = block("CURRENCY_NAMES")
     codes = re.findall(r"^\s*([A-Z]{3}):", body, re.M)
@@ -211,6 +228,25 @@ val CURRENCY_CODES: List<String> = listOf(
     {", ".join(kt_string(c) for c in currency_codes())}
 )
 
+/** What each currency is called, for a picker that shows more than a code. */
+val CURRENCY_NAMES: Map<String, String> = mapOf(
+{kt_map(currency_names())}
+)
+
+/**
+ * Where a currency is spent, by country code. Used to guess what to convert
+ * into from where the phone is, and by the extension to read what a page is
+ * priced in.
+ */
+val COUNTRY_TO_CURRENCY: Map<String, String> = mapOf(
+{kt_map(code_by_region("COUNTRY_TO_CURRENCY"))}
+)
+
+/** The same guess from a language tag, when the country is not known. */
+val LANG_TO_CURRENCY: Map<String, String> = mapOf(
+{kt_map(code_by_region("LANG_TO_CURRENCY"))}
+)
+
 /** Codes that are also everyday English words, so only read in capitals. */
 val CODES_NEEDING_CAPITALS: Set<String> = setOf(
     {", ".join(kt_string(c) for c in codes_needing_capitals())}
@@ -257,7 +293,8 @@ def main():
     TARGET.parent.mkdir(parents=True, exist_ok=True)
     TARGET.write_text(generated, encoding="utf-8")
     print(f"{TARGET.relative_to(ROOT)}: {len(symbol_to_code())} symbols, "
-          f"{len(currency_codes())} currencies, {len(token_patterns())} token patterns")
+          f"{len(currency_codes())} currencies, {len(token_patterns())} token patterns, "
+          f"{len(code_by_region('COUNTRY_TO_CURRENCY'))} countries")
 
 
 if __name__ == "__main__":

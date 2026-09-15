@@ -10,6 +10,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,6 +77,7 @@ fun CameraScreen(
     engine: OcrEngine,
     rates: RateTable?,
     target: String,
+    onChangeTarget: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -98,6 +100,7 @@ fun CameraScreen(
                 frame = frame,
                 rates = rates,
                 target = target,
+                onChangeTarget = onChangeTarget,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         } else {
@@ -184,6 +187,7 @@ private fun ReadingPanel(
     frame: FrameState,
     rates: RateTable?,
     target: String,
+    onChangeTarget: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -228,11 +232,16 @@ private fun ReadingPanel(
             }
         }
         Text(
-            text = "engine: ${engine.name} · ${target} · " +
+            // The whole line opens the picker: the currency is the only thing
+            // on it worth tapping, and it is too small a target on its own.
+            text = "into ${target} · ${engine.name} · " +
                 "frames: ${frame.framesSeen} · ${frame.lastMillis} ms" +
                 if (frame.reusedLastFrame > 0) " · ${frame.reusedLastFrame} reused" else "",
             color = Color(0xFF9E9E9E),
             style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier
+                .clickable(onClick = onChangeTarget)
+                .padding(vertical = 4.dp),
         )
         if (!engine.readsCyrillic) {
             Text(
