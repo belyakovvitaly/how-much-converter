@@ -1,11 +1,33 @@
 # Android app
 
-The app itself is not written yet. What exists is `core` — the price rules,
-in plain Kotlin, held to the OCR benchmark's numbers.
+Two modules. `:core` holds the price rules and is done enough to be under test;
+`:app` is the camera shell around them, and is still missing the one thing that
+makes it useful — a recognizer.
 
 ```sh
-./gradlew :core:test
+./gradlew :core:test        # the price rules, against the benchmark's numbers
+./gradlew :app:assembleDebug
 ```
+
+The build needs an Android SDK with API 37 and build-tools 36. Gradle finds it
+through `ANDROID_HOME` or a `local.properties` holding `sdk.dir=...`; that file
+is per-machine and stays out of the repository.
+
+## What `:app` does today
+
+Camera preview, frames analysed one at a time on a background thread with only
+the newest kept, each one passed through [`OcrEngine`](app/src/main/kotlin/converter/android/ocr/OcrEngine.kt)
+and then through `:core`, with whatever prices come out listed under the
+viewfinder.
+
+The engine in place is `UnwiredEngine`, which reads nothing. That is deliberate
+rather than unfinished: it makes the camera path verifiable on its own, and an
+engine returning plausible rubbish would be worse than one returning none. The
+UI says which engine is running and warns when that engine cannot read Cyrillic,
+because a Latin-only recognizer corrupts those prices instead of missing them.
+
+Frames are not chased at video rate and should not be — the benchmark put
+PaddleOCR's mobile configuration near 800 ms a frame on a desktop CPU.
 
 `core` is deliberately off the Android SDK: these rules are what Android and
 iOS share, and keeping them on plain Kotlin/JVM means they can be tested with a
