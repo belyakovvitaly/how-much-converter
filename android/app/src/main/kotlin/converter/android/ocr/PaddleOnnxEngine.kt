@@ -186,10 +186,28 @@ class PaddleOnnxEngine private constructor(
         return Planar(values, width, REC_HEIGHT)
     }
 
+    /**
+     * Cuts the box out of the frame, with room to its left and right.
+     *
+     * The side room is not cosmetic. A currency glyph standing in front of the
+     * digits sits at the very edge of the detector's box, where the recognizer
+     * reads it worst — and reading it *wrong* is far more costly than missing
+     * it, because a glyph misread as a digit fuses into the number: "₴1 200,50
+     * грн" came back as "21 200,50 грн", a price seventeen times too large,
+     * with its currency still attached so nothing downstream could refuse it.
+     *
+     * A third of the text's height of margin changes that failure into a safe
+     * one — the glyph comes back as a letter or not at all, and the number is
+     * intact. Measured across the prefix-written symbols (₴ ₹ ¥ ₩ $ € £): it
+     * costs nothing on the benchmark corpus, and more margin than this starts
+     * losing readings.
+     */
     private fun crop(frame: Bitmap, box: Box): Bitmap? {
-        val x = box.x0.toInt().coerceIn(0, frame.width - 1)
+        val margin = (box.height * SIDE_MARGIN).toInt()
+        val x = (box.x0.toInt() - margin).coerceIn(0, frame.width - 1)
+        val right = (box.x1.toInt() + margin).coerceIn(0, frame.width)
         val y = box.y0.toInt().coerceIn(0, frame.height - 1)
-        val width = (box.x1 - box.x0).toInt().coerceAtMost(frame.width - x)
+        val width = (right - x).coerceAtMost(frame.width - x)
         val height = (box.y1 - box.y0).toInt().coerceAtMost(frame.height - y)
         if (width < MIN_CROP || height < MIN_CROP) return null
         return Bitmap.createBitmap(frame, x, y, width, height)
@@ -205,6 +223,9 @@ class PaddleOnnxEngine private constructor(
         private const val REC_HEIGHT = 48
         private const val REC_MAX_WIDTH = 1600
         private const val MIN_CROP = 3
+
+        /** Side margin around a crop, in units of the text height. */
+        private const val SIDE_MARGIN = 0.3
 
         private val DET_MEAN = floatArrayOf(0.485f, 0.456f, 0.406f)
         private val DET_STD = floatArrayOf(0.229f, 0.224f, 0.225f)

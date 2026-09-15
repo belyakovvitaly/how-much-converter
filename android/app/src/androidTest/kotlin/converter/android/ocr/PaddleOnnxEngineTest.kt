@@ -163,6 +163,36 @@ class PaddleOnnxEngineTest {
         )
     }
 
+    @Test
+    fun doesNotSwallowACurrencyGlyphIntoTheNumber() {
+        // The one failure that produces a confidently wrong price rather than
+        // no price. "₴1 200,50 грн" has a prefix glyph the recognizer can read
+        // as a digit; when it does, the amount comes back seventeen times too
+        // large with its currency still attached, so nothing downstream can
+        // refuse it. Crops carry side margin to prevent exactly this.
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val bitmap = context.assets.open("regression/prefix-glyph.png").use {
+            BitmapFactory.decodeStream(it)
+        }
+        engine.reset()
+        val lines = engine.recognize(bitmap)
+        val prices = readPrices(lines)
+        bitmap.recycle()
+
+        Log.i(TAG, "prefix glyph fixture read as: ${lines.map { it.text }} -> $prices")
+
+        val inflated = prices.filter { it.amount > 20_000 }
+        assertTrue(
+            "the glyph was read as a digit and fused into the amount: $inflated " +
+                "(lines: ${lines.map { it.text }})",
+            inflated.isEmpty(),
+        )
+        assertTrue(
+            "expected 1200.50 UAH among $prices",
+            prices.any { it.code == "UAH" && kotlin.math.abs(it.amount - 1200.5) < 0.01 },
+        )
+    }
+
     companion object {
         private const val TAG = "HowMuchBench"
         private lateinit var engine: PaddleOnnxEngine

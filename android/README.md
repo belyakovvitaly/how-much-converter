@@ -42,6 +42,30 @@ missing them.
 Frames are not chased at video rate and should not be: recognition runs about
 830 ms a frame on an emulator.
 
+## The prefix glyph
+
+A currency symbol written in front of the digits sits at the very edge of the
+detector's box, where the recognizer reads it worst — and reading it wrong costs
+far more than missing it, because a glyph misread as a digit fuses into the
+number. `₴1 200,50 грн` came back as `21 200,50 грн`: seventeen times too large,
+with its currency still attached, so nothing downstream could refuse it. That is
+the one failure this project has been guarding against all along, and the only
+one measured that produces a confidently wrong price rather than none.
+
+It cannot be caught by a rule about content. `21 200,50 грн` is a perfectly
+ordinary price, and refusing every amount that starts with a 2 would throw away
+far more than it saved: the evidence that a glyph was ever there is destroyed by
+the recognizer.
+
+So the fix is geometric. Crops carry a third of the text's height of margin on
+each side, and that is enough to change the failure: the glyph comes back as a
+letter, or not at all, and the number is intact. Probed across the symbols
+written this way — `₴ ₹ ¥ ₩ $ € £`, clean, small and under camera conditions —
+`$ € £` are never lost, while `₴ ₹ ¥ ₩` are, and only `₴` and `₹` were ever read
+as digits. The margin costs nothing on the benchmark corpus, and more of it
+starts losing readings. `doesNotSwallowACurrencyGlyphIntoTheNumber` pins the
+case that used to fail.
+
 ## Box tracking
 
 Detection costs one model run for a whole frame; recognition costs one run per
