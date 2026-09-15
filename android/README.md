@@ -179,6 +179,26 @@ failure, not as rates.
 else. It keeps the response as the raw JSON it arrived as, so there is only one
 parser to agree with.
 
+## A photograph, not only a camera
+
+**Photo** takes a still; **Gallery** opens one already taken. Either is read and
+shown with its conversions drawn on it, the same overlay as the live view.
+
+A still is read *thoroughly*: the per-frame reading budget is lifted, because
+there is no next frame to defer the rest to and no reason to hurry. That makes
+it the better tool for a crowded shelf, where the live view reads the largest
+text first and catches up over several frames.
+
+Two things a still needs that a frame does not:
+
+- **EXIF orientation.** A camera writes the picture in the sensor's frame and
+  records how the phone was held in a tag; nothing in `BitmapFactory` applies
+  it. Skipped, every portrait photograph arrives sideways and reads as
+  nothing — the same failure the live camera had, arriving by another route.
+- **A lock on the engine.** The still is read from its own thread while the
+  camera keeps running, and two readings sharing one tracker would carry text
+  from one picture onto another.
+
 ## The conversion goes on the price
 
 The converted amount is drawn over the price it was read from, not listed under

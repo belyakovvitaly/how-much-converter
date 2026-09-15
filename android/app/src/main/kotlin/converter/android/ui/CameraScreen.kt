@@ -9,6 +9,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
@@ -93,6 +96,9 @@ fun CameraScreen(
     target: String,
     onChangeSource: () -> Unit = {},
     onChangeTarget: () -> Unit = {},
+    /** A photograph taken here, already the right way up. */
+    onPhoto: (Bitmap) -> Unit = {},
+    onPickFromGallery: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -109,7 +115,8 @@ fun CameraScreen(
     Box(modifier.fillMaxSize().background(Color.Black)) {
         if (granted) {
             var frame by remember { mutableStateOf(FrameState()) }
-            CameraPreview(engine, source) { frame = it }
+            val capture = remember { ImageCapture.Builder().build() }
+            CameraPreview(engine, source, capture) { frame = it }
             PriceOverlay(
                 prices = frame.prices,
                 imageWidth = frame.imageWidth,
@@ -125,6 +132,8 @@ fun CameraScreen(
                 target = target,
                 onChangeSource = onChangeSource,
                 onChangeTarget = onChangeTarget,
+                onPhoto = { takePhoto(capture, context, onPhoto) },
+                onPickFromGallery = onPickFromGallery,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         } else {
@@ -140,6 +149,7 @@ fun CameraScreen(
 private fun CameraPreview(
     engine: OcrEngine,
     source: String?,
+    capture: ImageCapture,
     onFrame: (FrameState) -> Unit,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -248,6 +258,7 @@ private fun CameraPreview(
                     CameraSelector.DEFAULT_BACK_CAMERA,
                     preview,
                     analysis,
+                    capture,
                 )
             }, ContextCompat.getMainExecutor(ctx))
             previewView
@@ -264,6 +275,8 @@ private fun ReadingPanel(
     target: String,
     onChangeSource: () -> Unit,
     onChangeTarget: () -> Unit,
+    onPhoto: () -> Unit,
+    onPickFromGallery: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -308,6 +321,11 @@ private fun ReadingPanel(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+        }
+        Row {
+            Setting(label = "Photo", onClick = onPhoto)
+            Text("   ", style = MaterialTheme.typography.bodyMedium)
+            Setting(label = "Gallery", onClick = onPickFromGallery)
         }
         Row {
             Setting(
@@ -381,4 +399,35 @@ private fun Bitmap.upright(degrees: Int): Bitmap {
     val rotated = Bitmap.createBitmap(this, 0, 0, width, height, matrix, true)
     if (rotated !== this) recycle()
     return rotated
+}
+
+/**
+ * Takes a still and hands it over upright.
+ *
+ * The same rotation the analyser needs: a captured frame carries the sensor's
+ * orientation rather than the phone's, and text lying on its side reads as
+ * nothing.
+ */
+private fun takePhoto(
+    capture: ImageCapture,
+    context: android.content.Context,
+    onPhoto: (Bitmap) -> Unit,
+) {
+    capture.takePicture(
+        ContextCompat.getMainExecutor(context),
+        object : ImageCapture.OnImageCapturedCallback() {
+            override fun onCaptureSuccess(image: ImageProxy) {
+                val upright = try {
+                    image.toBitmap().upright(image.imageInfo.rotationDegrees)
+                } finally {
+                    image.close()
+                }
+                onPhoto(upright)
+            }
+
+            override fun onError(exception: ImageCaptureException) {
+                android.util.Log.e("HowMuch", "could not take a photograph", exception)
+            }
+        },
+    )
 }

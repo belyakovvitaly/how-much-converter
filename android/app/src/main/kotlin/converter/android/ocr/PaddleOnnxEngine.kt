@@ -50,8 +50,10 @@ class PaddleOnnxEngine private constructor(
      * is skipped for a box that has barely moved, which is where the time goes
      * when several prices are in view.
      *
-     * Not synchronised: CameraX hands frames to one analyser thread at a time,
-     * which is the only way this class is meant to be used.
+     * Guarded by the instance lock. CameraX uses one analyser thread, but a
+     * still photograph is read from another while the camera keeps running, and
+     * two readings sharing a tracker would carry text from one picture onto
+     * another.
      */
     private var tracker = TrackerState()
 
@@ -77,11 +79,13 @@ class PaddleOnnxEngine private constructor(
         val skipped: Int = 0,
     )
 
+    @Synchronized
     override fun reset() {
         tracker = TrackerState()
     }
 
-    override fun recognize(frame: Bitmap): List<OcrLine> {
+    @Synchronized
+    override fun recognize(frame: Bitmap, thorough: Boolean): List<OcrLine> {
         val detectStart = System.currentTimeMillis()
         val (input, scale) = detectorInput(frame)
         val probabilities: FloatArray
@@ -153,7 +157,7 @@ class PaddleOnnxEngine private constructor(
                 skipped++
                 continue
             }
-            if (recognised >= MAX_NEW_READINGS) {
+            if (!thorough && recognised >= MAX_NEW_READINGS) {
                 skipped++
                 continue
             }

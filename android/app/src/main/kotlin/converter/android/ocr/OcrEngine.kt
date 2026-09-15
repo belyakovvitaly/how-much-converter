@@ -27,8 +27,15 @@ interface OcrEngine {
      */
     val readsCyrillic: Boolean
 
-    /** Recognizes one frame. Called off the main thread, one call at a time. */
-    fun recognize(frame: Bitmap): List<OcrLine>
+    /**
+     * Recognizes one frame. Called off the main thread, one call at a time.
+     *
+     * [thorough] lifts the per-frame reading budget. A live camera has to give
+     * an answer before the next frame arrives, so it reads only the largest
+     * text and lets later frames catch the rest; a still photograph is looked
+     * at once and can afford to read all of it.
+     */
+    fun recognize(frame: Bitmap, thorough: Boolean = false): List<OcrLine>
 
     /**
      * Forgets anything carried between frames.
@@ -51,5 +58,5 @@ interface OcrEngine {
 object UnwiredEngine : OcrEngine {
     override val name = "none yet"
     override val readsCyrillic = false
-    override fun recognize(frame: Bitmap): List<OcrLine> = emptyList()
+    override fun recognize(frame: Bitmap, thorough: Boolean): List<OcrLine> = emptyList()
 }

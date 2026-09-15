@@ -1,9 +1,14 @@
 package converter.android
 
+import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -17,14 +22,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import converter.android.ocr.OcrEngine
 import converter.android.ocr.PaddleOnnxEngine
+import converter.android.ocr.StillImages
 import converter.android.ocr.UnwiredEngine
 import converter.android.rates.RatesRepository
 import converter.android.rates.CurrencyStore
 import converter.android.ui.CameraScreen
 import converter.android.ui.CurrencyPicker
+import converter.android.ui.Still
+import converter.android.ui.StillScreen
 import converter.core.RateTable
+import converter.core.PriceContext
 import converter.core.RatesOutcome
+import converter.core.locatePrices
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
@@ -44,6 +56,8 @@ class MainActivity : ComponentActivity() {
                     var chosenLocal by remember { mutableStateOf(currencies.local) }
                     var chosenHome by remember { mutableStateOf(currencies.home) }
                     var picking by remember { mutableStateOf<Picking?>(null) }
+                    var still by remember { mutableStateOf<Still?>(null) }
+                    val scope = rememberCoroutineScope()
 
                     // What the prices are in, and what to turn them into. Not
                     // the same question: abroad, the first is the country's and
@@ -77,6 +91,40 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // Reading a still photograph, in one place, so the shutter
+                    // and the gallery cannot drift apart.
+                    fun read(image: Bitmap?) {
+                        if (image == null) {
+                            still = Still.Failed("Could not open that picture")
+                            return
+                        }
+                        still = Still.Working(image)
+                        scope.launch {
+                            val prices = withContext(Dispatchers.Default) {
+                                val current = engine
+                                current.reset()
+                                // Thorough: a still has no next frame to defer
+                                // the rest of the reading to.
+                                val lines = current.recognize(image, thorough = true)
+                                locatePrices(lines, PriceContext(pageCurrency = source))
+                            }
+                            still = Still.Read(image, prices)
+                        }
+                    }
+
+                    val fromGallery = rememberLauncherForActivityResult(
+                        ActivityResultContracts.PickVisualMedia()
+                    ) { uri: Uri? ->
+                        if (uri == null) return@rememberLauncherForActivityResult
+                        still = Still.Working(null)
+                        scope.launch {
+                            val image = withContext(Dispatchers.IO) {
+                                StillImages.loadUpright(context, uri)
+                            }
+                            read(image)
+                        }
+                    }
+
                     CameraScreen(
                         engine = engine,
                         rates = rates,
@@ -84,7 +132,24 @@ class MainActivity : ComponentActivity() {
                         target = target,
                         onChangeSource = { picking = Picking.Source },
                         onChangeTarget = { picking = Picking.Target },
+                        onPhoto = { read(it) },
+                        onPickFromGallery = {
+                            fromGallery.launch(
+                                PickVisualMediaRequest(
+                                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                                )
+                            )
+                        },
                     )
+
+                    still?.let { current ->
+                        StillScreen(
+                            still = current,
+                            rates = rates,
+                            target = target,
+                            onClose = { still = null },
+                        )
+                    }
 
                     when (picking) {
                         Picking.Source -> CurrencyPicker(
