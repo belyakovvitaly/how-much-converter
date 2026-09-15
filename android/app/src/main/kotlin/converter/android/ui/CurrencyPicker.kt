@@ -19,23 +19,26 @@ import converter.core.CURRENCY_CODES
 import converter.core.CURRENCY_NAMES
 
 /**
- * Picks what to convert into.
+ * Picks one of the two currencies.
  *
- * "Automatic" is first and is the default, because the right answer is usually
- * where the reader is standing; the detected currency is named beside it so the
- * choice is informed rather than blind.
+ * "Automatic" is first and is the default; the detected currency is named
+ * beside it so the choice is informed rather than blind. Detection can come to
+ * nothing for the local currency — a phone with no network knows where it is
+ * from but not where it is — and the row says so rather than pretending.
  */
 @Composable
 fun CurrencyPicker(
-    current: String,
+    title: String,
+    current: String?,
     automatic: Boolean,
-    detected: String,
+    detected: String?,
+    automaticSubtitle: String,
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Convert into") },
+        title = { Text(title) },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Close") }
         },
@@ -44,7 +47,8 @@ fun CurrencyPicker(
                 item {
                     Row(
                         title = "Automatic",
-                        subtitle = "where the phone is — $detected",
+                        subtitle = automaticSubtitle +
+                            (detected?.let { " — $it" } ?: " — could not tell"),
                         selected = automatic,
                         onClick = { onPick(null) },
                     )

@@ -43,31 +43,45 @@ class TargetCurrencyTest {
         assertNull(currencyForLanguage("en-GB"))
     }
 
+    // --- the two questions, which are not the same question ------------------
     @Test
-    fun `the country wins over the locale and the language`() {
-        // Someone Russian-speaking, phone set to Russia, standing in Georgia:
-        // the prices in front of them are in lari.
-        assertEquals(
-            "GEL",
-            chooseTargetCurrency(country = "ge", localeCountry = "ru", language = "ru"),
-        )
+    fun `abroad, the prices are local and the reader is not`() {
+        // The situation the app exists for: a Russian visiting Georgia. The
+        // prices in front of them are in lari; what they want is roubles.
+        // Detecting one answer for both would convert lari into lari.
+        assertEquals("GEL", localCurrency(networkCountry = "ge"))
+        assertEquals("RUB", homeCurrency(simCountry = "ru", localeCountry = "ru", language = "ru"))
     }
 
     @Test
-    fun `without a country the locale is used, then the language`() {
-        assertEquals("PLN", chooseTargetCurrency(localeCountry = "pl", language = "ru"))
-        assertEquals("RUB", chooseTargetCurrency(language = "ru-RU"))
+    fun `an unknown place leaves the local currency unknown rather than guessed`() {
+        // This value decides what an ambiguous symbol means, and a wrong guess
+        // converts confidently at the wrong rate. No answer is the safe one.
+        assertNull(localCurrency(null))
+        assertNull(localCurrency("zz"))
+    }
+
+    @Test
+    fun `home comes from the SIM first, because it travels with the reader`() {
+        // Phone bought in Russia, locale since switched to English: still RUB.
+        assertEquals("RUB", homeCurrency(simCountry = "ru", localeCountry = "us", language = "en"))
+    }
+
+    @Test
+    fun `without a SIM the locale is used, then the language`() {
+        assertEquals("PLN", homeCurrency(localeCountry = "pl", language = "ru"))
+        assertEquals("RUB", homeCurrency(language = "ru-RU"))
     }
 
     @Test
     fun `an unknown country falls through rather than blocking the rest`() {
-        assertEquals("RUB", chooseTargetCurrency(country = "zz", language = "ru"))
+        assertEquals("RUB", homeCurrency(simCountry = "zz", language = "ru"))
     }
 
     @Test
-    fun `with no signal at all the fallback is used and named`() {
-        assertEquals("USD", chooseTargetCurrency())
-        assertEquals("EUR", chooseTargetCurrency(fallback = "EUR"))
+    fun `home always answers, because something has to be converted into`() {
+        assertEquals("USD", homeCurrency())
+        assertEquals("EUR", homeCurrency(fallback = "EUR"))
     }
 
     @Test
@@ -88,5 +102,49 @@ class TargetCurrencyTest {
         for (code in CURRENCY_CODES) {
             assertEquals(true, CURRENCY_NAMES.containsKey(code), "$code has no name")
         }
+    }
+}
+
+class LocalCurrencyResolvesAmbiguityTest {
+
+    private fun read(text: String, local: String?) =
+        findPrices(text, PriceContext(pageCurrency = local))
+
+    @Test
+    fun `a bare dollar sign is refused when the country is unknown`() {
+        // Half of Latin America prints "$" and means a peso. Reading it as USD
+        // would be a confident conversion at a rate ten to a thousand times off.
+        assertEquals(emptyList(), read("$1,299", null))
+    }
+
+    @Test
+    fun `standing in Argentina, a dollar sign is a peso`() {
+        assertEquals(listOf(Price(1299.0, "ARS")), read("$1,299", localCurrency("ar")))
+    }
+
+    @Test
+    fun `standing in the United States, the same sign is a dollar`() {
+        assertEquals(listOf(Price(1299.0, "USD")), read("$1,299", localCurrency("us")))
+    }
+
+    @Test
+    fun `a krone is three currencies, and the country picks one`() {
+        assertEquals(listOf(Price(429.0, "SEK")), read("429 kr", localCurrency("se")))
+        assertEquals(listOf(Price(429.0, "NOK")), read("429 kr", localCurrency("no")))
+        assertEquals(emptyList(), read("429 kr", null))
+    }
+
+    @Test
+    fun `an unambiguous symbol needs no country at all`() {
+        // Most prices say plainly what they are; the country is only for the
+        // ones that do not.
+        assertEquals(listOf(Price(1299.0, "RUB")), read("1 299 ₽", null))
+        assertEquals(listOf(Price(450.0, "UAH")), read("450 грн", null))
+    }
+
+    @Test
+    fun `a country whose currency does not share the symbol does not claim it`() {
+        // Standing in Poland does not make "$" a zloty.
+        assertEquals(emptyList(), read("$1,299", localCurrency("pl")))
     }
 }

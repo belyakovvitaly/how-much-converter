@@ -2,11 +2,16 @@ package converter.android.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
@@ -14,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,6 +46,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import converter.android.ocr.OcrEngine
 import converter.core.Price
+import converter.core.PriceContext
 import converter.core.RateTable
 import converter.core.VoteSettings
 import converter.core.VoteState
@@ -76,7 +83,11 @@ data class FrameState(
 fun CameraScreen(
     engine: OcrEngine,
     rates: RateTable?,
+    /** What the prices in view are in; null when the place is unknown. */
+    source: String?,
+    /** What to convert into. */
     target: String,
+    onChangeSource: () -> Unit = {},
     onChangeTarget: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -94,12 +105,14 @@ fun CameraScreen(
     Box(modifier.fillMaxSize().background(Color.Black)) {
         if (granted) {
             var frame by remember { mutableStateOf(FrameState()) }
-            CameraPreview(engine) { frame = it }
+            CameraPreview(engine, source) { frame = it }
             ReadingPanel(
                 engine = engine,
                 frame = frame,
                 rates = rates,
+                source = source,
                 target = target,
+                onChangeSource = onChangeSource,
                 onChangeTarget = onChangeTarget,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
@@ -113,8 +126,16 @@ fun CameraScreen(
 }
 
 @Composable
-private fun CameraPreview(engine: OcrEngine, onFrame: (FrameState) -> Unit) {
+private fun CameraPreview(
+    engine: OcrEngine,
+    source: String?,
+    onFrame: (FrameState) -> Unit,
+) {
     val lifecycleOwner = LocalLifecycleOwner.current
+    // What an ambiguous symbol means depends on where the camera is; "$" is a
+    // peso in half of Latin America. Read through rememberUpdatedState for the
+    // same reason as the engine: the analyser outlives this composition.
+    val currentSource = rememberUpdatedState(source)
     // The analyser is built once, inside AndroidView's factory, but the engine
     // is swapped in later when its models finish loading. Reading it through
     // rememberUpdatedState is what keeps the analyser from holding the
@@ -140,17 +161,34 @@ private fun CameraPreview(engine: OcrEngine, onFrame: (FrameState) -> Unit) {
 
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    // The default is 640x480, which leaves a price tag across a
+                    // room a few pixels tall — and the detector scales its input
+                    // to a long side of 960 anyway, so anything less is capacity
+                    // thrown away.
+                    .setResolutionSelector(
+                        ResolutionSelector.Builder()
+                            .setResolutionStrategy(
+                                ResolutionStrategy(
+                                    Size(1280, 960),
+                                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                                )
+                            )
+                            .build()
+                    )
                     .build()
 
                 analysis.setAnalyzer(analysisExecutor) { image ->
                     val started = System.currentTimeMillis()
                     try {
-                        val lines = currentEngine.value.recognize(image.toBitmap())
-                        val prices = readPrices(lines)
+                        val frame = image.toBitmap().upright(image.imageInfo.rotationDegrees)
+                        val lines = currentEngine.value.recognize(frame)
+                        frame.recycle()
+                        val context = PriceContext(pageCurrency = currentSource.value)
+                        val prices = readPrices(lines, context)
                         // Prices whose text this frame actually read, as opposed
                         // to carried over from the last one. Only these count
                         // towards confirming a reading.
-                        val fresh = readPrices(lines.filterNot { it.reused }).toSet()
+                        val fresh = readPrices(lines.filterNot { it.reused }, context).toSet()
                         val agreed = votes.updateAndGet {
                             it.observe(prices, VoteSettings(), fresh)
                         }
@@ -186,7 +224,9 @@ private fun ReadingPanel(
     engine: OcrEngine,
     frame: FrameState,
     rates: RateTable?,
+    source: String?,
     target: String,
+    onChangeSource: () -> Unit,
     onChangeTarget: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -231,17 +271,19 @@ private fun ReadingPanel(
                 )
             }
         }
+        Row {
+            Setting(
+                label = "from ${source ?: "?"}",
+                onClick = onChangeSource,
+            )
+            Text("   ", style = MaterialTheme.typography.bodyMedium)
+            Setting(label = "into $target", onClick = onChangeTarget)
+        }
         Text(
-            // The whole line opens the picker: the currency is the only thing
-            // on it worth tapping, and it is too small a target on its own.
-            text = "into ${target} · ${engine.name} · " +
-                "frames: ${frame.framesSeen} · ${frame.lastMillis} ms" +
+            text = "${engine.name} · frames: ${frame.framesSeen} · ${frame.lastMillis} ms" +
                 if (frame.reusedLastFrame > 0) " · ${frame.reusedLastFrame} reused" else "",
-            color = Color(0xFF9E9E9E),
+            color = Color(0xFF7A7A7A),
             style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier
-                .clickable(onClick = onChangeTarget)
-                .padding(vertical = 4.dp),
         )
         if (!engine.readsCyrillic) {
             Text(
@@ -253,6 +295,20 @@ private fun ReadingPanel(
             )
         }
     }
+}
+
+/** A tappable currency in the panel. Underlined, so it reads as a control. */
+@Composable
+private fun Setting(label: String, onClick: () -> Unit) {
+    Text(
+        text = label,
+        color = Color(0xFFCFCFCF),
+        style = MaterialTheme.typography.bodyMedium,
+        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+    )
 }
 
 @Composable
@@ -269,4 +325,22 @@ private fun PermissionPrompt(onAsk: () -> Unit, modifier: Modifier = Modifier) {
         )
         Button(onClick = onAsk) { Text("Allow camera") }
     }
+}
+
+/**
+ * Turns a camera frame the right way up.
+ *
+ * ImageProxy hands over the sensor's buffer untouched, and a phone's back
+ * camera is mounted sideways: held upright, the frame arrives rotated ninety
+ * degrees. The recognizer has no model for rotated text, so without this every
+ * price in the world reads as nothing — which is exactly what happened, and
+ * which no test here could catch, because a test feeds bitmaps that are already
+ * upright.
+ */
+private fun Bitmap.upright(degrees: Int): Bitmap {
+    if (degrees % 360 == 0) return this
+    val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
+    val rotated = Bitmap.createBitmap(this, 0, 0, width, height, matrix, true)
+    if (rotated !== this) recycle()
+    return rotated
 }

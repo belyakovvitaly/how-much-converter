@@ -61,6 +61,19 @@ missing them.
 Frames are not chased at video rate and should not be: recognition runs about
 830 ms a frame on an emulator.
 
+Two things about a camera frame that a fixture never shows, and that the first
+build on a real phone got wrong:
+
+- **It arrives sideways.** A phone's back camera is mounted landscape, so held
+  upright it delivers the scene rotated ninety degrees, and the recognizer has
+  no model for rotated text. Without turning the frame upright the app reads
+  nothing at all — which is what happened, and which no test here could catch,
+  since every test feeds a bitmap that is already the right way up.
+  `readsNothingFromASidewaysFrame` now pins it.
+- **The default analysis resolution is 640x480**, which leaves a price tag
+  across a room a few pixels tall; the detector scales its input to a long side
+  of 960 in any case, so anything less is capacity thrown away.
+
 ## The prefix glyph
 
 A currency symbol written in front of the digits sits at the very edge of the
@@ -145,23 +158,36 @@ failure, not as rates.
 else. It keeps the response as the raw JSON it arrived as, so there is only one
 parser to agree with.
 
-## What to convert into
+## Two currencies, not one
 
-Tapping the line under the viewfinder opens the picker. "Automatic" is the
-default and names what it detected, so the choice is informed; an explicit
-choice is remembered.
+The app exists for one situation: standing in another country, where the prices
+in front of you are in a currency you do not think in. So there are two
+questions, and they are not the same question.
 
-The detection is the mobile network's country, then the SIM's, then the locale's
-region, then its language — `chooseTargetCurrency` in `:core`, over the same
-country and language tables the extension uses to work out what a page is
-priced in.
+**What the prices are in** is detected from the mobile network's country —
+where the phone is standing. It is allowed to be unknown, and says so, because
+its job is to decide what an ambiguous symbol means: `$` is a peso in half of
+Latin America, `kr` is three different krone. A wrong answer there does not
+merely fail to help, it converts confidently at the wrong rate, so no answer is
+the safe one and those symbols simply go unread.
 
-**Not the location permission.** The network country answers the only question
-being asked — which country's prices am I standing in front of — without GPS,
-without a geocoder lookup over the network, and without anything about the
-reader leaving the device. That is the promise PRIVACY.md makes for the
-extension, and there is no reason the app should keep it less well. A phone with
-no SIM, an emulator included, falls through to the locale.
+**What to convert into** comes from the SIM's country first, which travels with
+the reader and still says where they are from while they are abroad, then the
+locale, then its language.
+
+Either can be set by hand: the two underlined currencies under the viewfinder
+open a picker each.
+
+An earlier version of this got the direction backwards — it detected the
+*target* from where the phone was, which in Georgia would have converted lari
+into lari, useless in exactly the situation the app is for. The tests now name
+the case: `abroad, the prices are local and the reader is not`.
+
+**Not the location permission.** The network country answers the question
+without GPS, without a geocoder lookup over the network, and without anything
+about the reader leaving the device — the promise PRIVACY.md makes for the
+extension.
+
 
 ## The engine
 

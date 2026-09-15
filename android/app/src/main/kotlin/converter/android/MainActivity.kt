@@ -19,7 +19,7 @@ import converter.android.ocr.OcrEngine
 import converter.android.ocr.PaddleOnnxEngine
 import converter.android.ocr.UnwiredEngine
 import converter.android.rates.RatesRepository
-import converter.android.rates.TargetCurrencyStore
+import converter.android.rates.CurrencyStore
 import converter.android.ui.CameraScreen
 import converter.android.ui.CurrencyPicker
 import converter.core.RateTable
@@ -38,11 +38,18 @@ class MainActivity : ComponentActivity() {
                     val context = LocalContext.current
                     var engine by remember { mutableStateOf<OcrEngine>(UnwiredEngine) }
                     var rates by remember { mutableStateOf<RateTable?>(null) }
-                    val targets = remember { TargetCurrencyStore(context) }
-                    val detected = remember { targets.detect() }
-                    var chosen by remember { mutableStateOf(targets.chosen) }
-                    var picking by remember { mutableStateOf(false) }
-                    val target = chosen ?: detected
+                    val currencies = remember { CurrencyStore(context) }
+                    val detectedLocal = remember { currencies.detectLocal() }
+                    val detectedHome = remember { currencies.detectHome() }
+                    var chosenLocal by remember { mutableStateOf(currencies.local) }
+                    var chosenHome by remember { mutableStateOf(currencies.home) }
+                    var picking by remember { mutableStateOf<Picking?>(null) }
+
+                    // What the prices are in, and what to turn them into. Not
+                    // the same question: abroad, the first is the country's and
+                    // the second is the reader's.
+                    val source = chosenLocal ?: detectedLocal
+                    val target = chosenHome ?: detectedHome
 
                     // Reading two ONNX models out of assets costs a second or
                     // more; the camera starts without waiting for it, and the
@@ -73,27 +80,50 @@ class MainActivity : ComponentActivity() {
                     CameraScreen(
                         engine = engine,
                         rates = rates,
+                        source = source,
                         target = target,
-                        onChangeTarget = { picking = true },
+                        onChangeSource = { picking = Picking.Source },
+                        onChangeTarget = { picking = Picking.Target },
                     )
 
-                    if (picking) {
-                        CurrencyPicker(
-                            current = target,
-                            automatic = chosen == null,
-                            detected = detected,
+                    when (picking) {
+                        Picking.Source -> CurrencyPicker(
+                            title = "Prices are in",
+                            current = source,
+                            automatic = chosenLocal == null,
+                            detected = detectedLocal,
+                            automaticSubtitle = "where the phone is",
                             onPick = { code ->
-                                targets.chosen = code
-                                chosen = code
-                                picking = false
+                                currencies.local = code
+                                chosenLocal = code
+                                picking = null
                             },
-                            onDismiss = { picking = false },
+                            onDismiss = { picking = null },
                         )
+
+                        Picking.Target -> CurrencyPicker(
+                            title = "Convert into",
+                            current = target,
+                            automatic = chosenHome == null,
+                            detected = detectedHome,
+                            automaticSubtitle = "where the phone is from",
+                            onPick = { code ->
+                                currencies.home = code
+                                chosenHome = code
+                                picking = null
+                            },
+                            onDismiss = { picking = null },
+                        )
+
+                        null -> Unit
                     }
                 }
             }
         }
     }
+
+    /** Which of the two currencies the picker is open for. */
+    private enum class Picking { Source, Target }
 
     private companion object {
         const val TAG = "HowMuch"

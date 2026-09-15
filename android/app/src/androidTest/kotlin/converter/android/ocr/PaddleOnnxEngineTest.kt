@@ -1,6 +1,8 @@
 package converter.android.ocr
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -190,6 +192,39 @@ class PaddleOnnxEngineTest {
         assertTrue(
             "expected 1200.50 UAH among $prices",
             prices.any { it.code == "UAH" && kotlin.math.abs(it.amount - 1200.5) < 0.01 },
+        )
+    }
+
+    @Test
+    fun readsNothingFromASidewaysFrame() {
+        // Why the camera has to turn its frames upright before handing them
+        // over. A phone's back camera is mounted sideways, so held upright it
+        // delivers the scene rotated ninety degrees — and the recognizer has no
+        // model for rotated text. The app shipped once without that rotation and
+        // read nothing at all, which no test here caught, because every test
+        // feeds a bitmap that is already the right way up.
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val upright = context.assets.open("bench/01-price-tag.png").use {
+            BitmapFactory.decodeStream(it)
+        }
+        val sideways = Bitmap.createBitmap(
+            upright, 0, 0, upright.width, upright.height,
+            Matrix().apply { postRotate(90f) }, true,
+        )
+
+        engine.reset()
+        val fromUpright = readPrices(engine.recognize(upright))
+        engine.reset()
+        val fromSideways = readPrices(engine.recognize(sideways))
+        upright.recycle()
+        sideways.recycle()
+
+        Log.i(TAG, "upright: $fromUpright   sideways: $fromSideways")
+
+        assertEquals(listOf(Price(1299.0, "RUB")), fromUpright)
+        assertTrue(
+            "a sideways frame should read as nothing, not as $fromSideways",
+            fromSideways.isEmpty(),
         )
     }
 
