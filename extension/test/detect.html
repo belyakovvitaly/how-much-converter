@@ -62,9 +62,26 @@
           ["Open Graph product meta",
             () => detect('<meta property="product:price:currency" content="NOK">', "example.com", "en"),
             "NOK"],
-          ["markup beats the hostname",
+          ["markup outvoted by the address and the language together",
             () => detect(ld('{"priceCurrency":"CNY"}'), "shop.jp", "ja"),
-            "CNY"],
+            "JPY"],
+
+          // --- the markup and the address disagree ---
+          ["markup says EUR, a .rs shop, Serbian page (maxi.rs)",
+            () => detect(ld('{"priceCurrency":"EUR"}'), "www.maxi.rs", "sr-latn"),
+            "RSD"],
+          ["markup says EUR, a .rs shop, but the page is in English",
+            () => detect(ld('{"priceCurrency":"EUR"}'), "www.maxi.rs", "en"),
+            null],
+          ["markup and language agree against the address",
+            () => detect(ld('{"priceCurrency":"EUR"}'), "shop.pl", "nl"),
+            "EUR"],
+          ["markup and address agree",
+            () => detect(ld('{"priceCurrency":"EUR"}'), "shop.de", "de"),
+            "EUR"],
+          ["markup alone, no country in the address (hepsiburada.com)",
+            () => detect(ld('{"priceCurrency":"TRY"}'), "www.hepsiburada.com", "tr"),
+            "TRY"],
 
           // --- inferred from the address ---
           ["ccTLD under a second level", () => detect("", "falabella.com.pe", "es"), "PEN"],

@@ -97,6 +97,21 @@
           ["R$ 89,90", "ZAR", "BRL", 89.9],
           ["R$ 89,90", null, "BRL", 89.9],
 
+          // --- codes in lower case, as shops also write them ---
+          ["129.98 rsd/Kg", null, "RSD", 129.98],
+          ["189,99 rsd", null, "RSD", 189.99],
+          ["1 299 sek", null, "SEK", 1299],
+          ["Rsd 450", null, "RSD", 450],
+          ["500 usdt", null, null, null],
+          // ...except the ones that are ordinary words in lower case
+          ["2 cup sugar", null, null, null],
+          ["a 5 pen set", null, null, null],
+          ["try 3 again", null, null, null],
+          ["50 gel for hair", null, null, null],
+          ["rub 2 drops in", null, null, null],
+          ["5 CUP", null, "CUP", 5],
+          ["79,900 TRY", null, "TRY", 79900],
+
           // --- the separator a superscript markup leaves out (maxi.rs) ---
           ["189,99RSD", null, "RSD", 189.99],
           ["189,99 RSD/kilogram", null, "RSD", 189.99],

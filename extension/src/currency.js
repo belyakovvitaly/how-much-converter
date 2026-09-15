@@ -450,11 +450,26 @@ function matchIsOnOneLine(map, start, end) {
 }
 
 function detectPageCurrency(doc, loc, isKnownCode) {
-  return (
-    currencyFromMarkup(doc, isKnownCode) ||
-    currencyFromHostname(loc.hostname) ||
-    currencyFromLang(doc.documentElement.lang)
-  );
+  const fromMarkup = currencyFromMarkup(doc, isKnownCode);
+  const fromHost = currencyFromHostname(loc.hostname);
+  const fromLang = currencyFromLang(doc.documentElement.lang);
+
+  // The markup is normally the best of the three, being a statement rather
+  // than an inference — but it can simply be wrong. maxi.rs declares EUR in
+  // its JSON-LD while pricing every shelf in dinars, and taking its word for
+  // it would misread an unlabelled price by a factor of a hundred.
+  //
+  // So when the two strong signals disagree, the language breaks the tie: two
+  // of three carries it. With nothing to break it, the page does not get a
+  // currency at all, and the ambiguous symbols stay unconverted — which is the
+  // trade this whole feature is built on.
+  if (fromMarkup && fromHost && fromMarkup !== fromHost) {
+    if (fromLang === fromHost) return fromHost;
+    if (fromLang === fromMarkup) return fromMarkup;
+    return null;
+  }
+
+  return fromMarkup || fromHost || fromLang;
 }
 
 // Number token: 1 234 567,89 / 1,234,567.89 / 1'234'567.89 / 1234.5 / 1234
@@ -464,6 +479,12 @@ function detectPageCurrency(doc, loc, isKnownCode) {
 // "1.449,–" for a round amount — in either the typographic or the hyphen form.
 const MINOR = String.raw`[.,](?:\d{1,2}|[–-])`;
 const NUMBER = String.raw`\d{1,3}(?:[.,   '’]\d{3})+(?:${MINOR})?|\d+(?:${MINOR})?`;
+
+// Codes that are also everyday English words, and so are only read as money
+// when written the way money is: BOB, COP, CUP, GEL, PEN, RUB, TRY.
+const CODES_NEEDING_CAPITALS = new Set([
+  "BOB", "COP", "CUP", "GEL", "PEN", "RUB", "TRY",
+]);
 
 // A token written in a script that spaces its words has to be fenced off by
 // letters, or "руб" matches inside "рубанок" and "USD" inside "USDT". A token
@@ -484,7 +505,18 @@ function buildPriceRegExp() {
   // stray "UVP" or "SKU" would otherwise match and consume the number after
   // it, and the real price alongside — "UVP 1449,– €" — would be gone by the
   // time the scan resumed.
-  const codes = Object.keys(CURRENCY_NAMES).join("|");
+  //
+  // Most are taken in any case, since shops write "129.98 rsd/Kg" as readily
+  // as "RSD". The exceptions are the ones that are also ordinary words: in
+  // lower case "5 pen set" is stationery, not Peruvian soles, and "rub 2
+  // drops" is an instruction, not roubles. Those hold out for capitals.
+  const codes = Object.keys(CURRENCY_NAMES)
+    .map((code) =>
+      CODES_NEEDING_CAPITALS.has(code)
+        ? code
+        : [...code].map((ch) => `[${ch}${ch.toLowerCase()}]`).join("")
+    )
+    .join("|");
 
   // Longest first within each group, and the fenced group first overall, so
   // "R$" wins over "$" and "US$" over "$".
