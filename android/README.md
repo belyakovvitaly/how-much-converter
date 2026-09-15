@@ -42,6 +42,29 @@ missing them.
 Frames are not chased at video rate and should not be: recognition runs about
 830 ms a frame on an emulator.
 
+## Box tracking
+
+Detection costs one model run for a whole frame; recognition costs one run per
+box. On a still scene those boxes barely move, so re-reading each of them every
+frame is most of the work and almost none of the information.
+[`TrackerState.reuseFor`](core/src/main/kotlin/converter/core/BoxTracking.kt)
+carries a reading forward when a box overlaps its predecessor by three quarters,
+and gives up after three frames so a stale price cannot sit on screen after the
+thing it was read from changed. Measured on the emulator, reading the same
+eight-box frame twice went from 901 ms to 440 ms.
+
+**The trap this creates, and the answer to it.** A reading carried forward looks
+exactly like a reading several frames agree on, so left alone, tracking would
+manufacture the very agreement the voting exists to demand — one wrong
+recognition could confirm itself by being copied. So a carried line is marked
+`reused`, and the voting holds such a price's score instead of raising it: the
+price stays on screen, but only an independent recognition counts as evidence.
+
+For the same reason an engine that carries readings needs `reset()` before an
+image that is not a continuation of the last one — a fresh photo, or the next
+of a batch. The corpus test calls it between fixtures; without it, a reading
+could be carried onto text from a different picture.
+
 ## Frame voting
 
 One frame is not evidence. A recognizer reading a live camera disagrees with

@@ -56,15 +56,21 @@ data class VoteState(val votes: List<PriceVote> = emptyList()) {
 fun VoteState.observe(
     frame: List<Price>,
     settings: VoteSettings = VoteSettings(),
+    fresh: Set<Price>? = null,
 ): VoteState {
     val seen = frame.toSet()
+    // A reading carried over from an earlier frame keeps a price on screen but
+    // is not new evidence for it. Without this, box tracking would manufacture
+    // the very agreement the voting exists to require, and one bad recognition
+    // could confirm itself by being copied forward.
+    val independent = fresh ?: seen
     val updated = mutableListOf<PriceVote>()
 
     for (vote in votes) {
-        val score = if (vote.price in seen) {
-            minOf(vote.score + 1, settings.maxScore)
-        } else {
-            maxOf(vote.score - 1, 0)
+        val score = when {
+            vote.price in independent -> minOf(vote.score + 1, settings.maxScore)
+            vote.price in seen -> vote.score          // still there, but not re-read
+            else -> maxOf(vote.score - 1, 0)
         }
         val showing = if (vote.showing) score > settings.dropAt else score >= settings.confirmAt
         if (score == 0 && !showing) continue
@@ -78,7 +84,10 @@ fun VoteState.observe(
     for (price in frame) {
         if (price in tracked) continue
         tracked += price
-        updated += PriceVote(price, score = 1, showing = 1 >= settings.confirmAt)
+        // A price first seen on a carried line starts at zero: it has not been
+        // read in any frame yet, only copied into this one.
+        val score = if (price in independent) 1 else 0
+        updated += PriceVote(price, score, showing = score >= settings.confirmAt)
     }
 
     return VoteState(updated)

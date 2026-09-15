@@ -40,6 +40,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import converter.android.ocr.OcrEngine
 import converter.core.Price
 import converter.core.RateTable
+import converter.core.VoteSettings
 import converter.core.VoteState
 import converter.core.observe
 import converter.core.convert
@@ -55,6 +56,8 @@ data class FrameState(
     val prices: List<Price> = emptyList(),
     /** How many readings the last frame produced, confirmed or not. */
     val readLastFrame: Int = 0,
+    /** How many of the last frame's lines were carried rather than read. */
+    val reusedLastFrame: Int = 0,
     val framesSeen: Long = 0,
     val lastMillis: Long = 0,
 )
@@ -141,11 +144,18 @@ private fun CameraPreview(engine: OcrEngine, onFrame: (FrameState) -> Unit) {
                     try {
                         val lines = currentEngine.value.recognize(image.toBitmap())
                         val prices = readPrices(lines)
-                        val agreed = votes.updateAndGet { it.observe(prices) }
+                        // Prices whose text this frame actually read, as opposed
+                        // to carried over from the last one. Only these count
+                        // towards confirming a reading.
+                        val fresh = readPrices(lines.filterNot { it.reused }).toSet()
+                        val agreed = votes.updateAndGet {
+                            it.observe(prices, VoteSettings(), fresh)
+                        }
                         onFrame(
                             FrameState(
                                 prices = agreed.confirmed,
                                 readLastFrame = prices.size,
+                                reusedLastFrame = lines.count { it.reused },
                                 framesSeen = seen.incrementAndGet(),
                                 lastMillis = System.currentTimeMillis() - started,
                             )
@@ -219,7 +229,8 @@ private fun ReadingPanel(
         }
         Text(
             text = "engine: ${engine.name} · ${target} · " +
-                "frames: ${frame.framesSeen} · ${frame.lastMillis} ms",
+                "frames: ${frame.framesSeen} · ${frame.lastMillis} ms" +
+                if (frame.reusedLastFrame > 0) " · ${frame.reusedLastFrame} reused" else "",
             color = Color(0xFF9E9E9E),
             style = MaterialTheme.typography.bodySmall,
         )

@@ -27,8 +27,18 @@ interface OcrEngine {
      */
     val readsCyrillic: Boolean
 
-    /** Recognizes one frame. Called off the main thread. */
+    /** Recognizes one frame. Called off the main thread, one call at a time. */
     fun recognize(frame: Bitmap): List<OcrLine>
+
+    /**
+     * Forgets anything carried between frames.
+     *
+     * An engine may reuse a reading when a box has barely moved, which is only
+     * sound while the frames are a continuation of one another. Call this
+     * before handing it an image that is not — a new photo, or the next of a
+     * batch — or a reading may be carried onto text it never came from.
+     */
+    fun reset() = Unit
 }
 
 /**

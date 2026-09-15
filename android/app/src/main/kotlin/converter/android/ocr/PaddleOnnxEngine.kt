@@ -7,8 +7,11 @@ import android.content.Context
 import android.graphics.Bitmap
 import converter.core.Box
 import converter.core.OcrLine
+import converter.core.TrackedLine
+import converter.core.TrackerState
 import converter.core.ctcDecode
 import converter.core.detectBoxes
+import converter.core.reuseFor
 import converter.core.scaleTo
 import java.io.Closeable
 import java.nio.FloatBuffer
@@ -38,6 +41,20 @@ class PaddleOnnxEngine private constructor(
     // The East Slavic recognizer is the whole reason this engine was chosen.
     override val readsCyrillic = true
 
+    /**
+     * What the previous frame read. Detection runs on every frame; recognition
+     * is skipped for a box that has barely moved, which is where the time goes
+     * when several prices are in view.
+     *
+     * Not synchronised: CameraX hands frames to one analyser thread at a time,
+     * which is the only way this class is meant to be used.
+     */
+    private var tracker = TrackerState()
+
+    override fun reset() {
+        tracker = TrackerState()
+    }
+
     override fun recognize(frame: Bitmap): List<OcrLine> {
         val (input, scale) = detectorInput(frame)
         val probabilities: FloatArray
@@ -61,14 +78,32 @@ class PaddleOnnxEngine private constructor(
         }
 
         val lines = mutableListOf<OcrLine>()
+        val carried = mutableListOf<TrackedLine>()
+
         for (detection in detectBoxes(probabilities, mapWidth, mapHeight)) {
             val box = detection.box.scaleTo(scale.x, scale.y, frame.width, frame.height)
+
+            val previous = tracker.reuseFor(box)
+            if (previous != null) {
+                // Marked reused so the voting downstream holds this price's
+                // score rather than raising it: the same reading repeated is
+                // not the same as several frames agreeing.
+                lines += OcrLine(previous.text, previous.confidence, box, reused = true)
+                carried += TrackedLine(box, previous.text, previous.confidence, previous.reuses + 1)
+                continue
+            }
+
             val crop = crop(frame, box) ?: continue
             val reading = read(crop)
             crop.recycle()
             if (reading == null || reading.text.isBlank()) continue
-            lines += OcrLine(reading.text, reading.confidence.toDouble(), box)
+
+            val confidence = reading.confidence.toDouble()
+            lines += OcrLine(reading.text, confidence, box)
+            carried += TrackedLine(box, reading.text, confidence, reuses = 0)
         }
+
+        tracker = TrackerState(carried)
         return lines
     }
 

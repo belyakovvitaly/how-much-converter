@@ -12,8 +12,19 @@ data class Box(val x0: Double, val y0: Double, val x1: Double, val y1: Double) {
     val height: Double get() = y1 - y0
 }
 
-/** One line as an engine reported it. */
-data class OcrLine(val text: String, val confidence: Double = 1.0, val box: Box? = null)
+/**
+ * One line as an engine reported it.
+ *
+ * [reused] marks a line carried over from an earlier frame instead of read in
+ * this one — see BoxTracking.kt. It matters downstream: a carried reading is
+ * not independent evidence, and the voting must not treat it as such.
+ */
+data class OcrLine(
+    val text: String,
+    val confidence: Double = 1.0,
+    val box: Box? = null,
+    val reused: Boolean = false,
+)
 
 /**
  * What a recognizer emits instead of the real glyph.

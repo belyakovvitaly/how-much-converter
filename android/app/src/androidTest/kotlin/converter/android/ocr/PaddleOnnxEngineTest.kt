@@ -65,6 +65,11 @@ class PaddleOnnxEngineTest {
             }
             requireNotNull(bitmap) { "could not decode ${case.id}.png" }
 
+            // Consecutive fixtures are unrelated images, not a continuation of
+            // one another: carrying a reading from one to the next would be
+            // reading text off the wrong picture.
+            engine.reset()
+
             val started = System.currentTimeMillis()
             val lines = engine.recognize(bitmap)
             val elapsed = System.currentTimeMillis() - started
@@ -103,6 +108,7 @@ class PaddleOnnxEngineTest {
         val bitmap = context.assets.open("bench/01-price-tag.png").use {
             BitmapFactory.decodeStream(it)
         }
+        engine.reset()
         val prices = readPrices(engine.recognize(bitmap))
         bitmap.recycle()
 
@@ -119,6 +125,42 @@ class PaddleOnnxEngineTest {
         )
         val converted = rates.convert(price.amount, price.code, "EUR")
         assertEquals("12.99 EUR", formatConverted(converted!!, "EUR"))
+    }
+
+    @Test
+    fun skipsTheRecognizerForBoxesThatHaveNotMoved() {
+        // A still scene is the common case, and re-reading every box in it is
+        // the bulk of the work. The second pass over an identical frame should
+        // reuse every box rather than run the recognizer again.
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val bitmap = context.assets.open("bench/02-shop-list.png").use {
+            BitmapFactory.decodeStream(it)
+        }
+
+        engine.reset()
+        val firstStart = System.currentTimeMillis()
+        val first = engine.recognize(bitmap)
+        val firstMillis = System.currentTimeMillis() - firstStart
+
+        val secondStart = System.currentTimeMillis()
+        val second = engine.recognize(bitmap)
+        val secondMillis = System.currentTimeMillis() - secondStart
+        bitmap.recycle()
+
+        Log.i(TAG, "same frame twice: $firstMillis ms then $secondMillis ms")
+
+        assertTrue("nothing was read at all", first.isNotEmpty())
+        assertTrue("the first pass should read, not reuse", first.none { it.reused })
+        assertTrue("the second pass should reuse: $second", second.all { it.reused })
+        assertEquals(
+            "reuse changed what was read",
+            first.map { it.text },
+            second.map { it.text },
+        )
+        assertTrue(
+            "reuse saved nothing: $firstMillis ms then $secondMillis ms",
+            secondMillis < firstMillis,
+        )
     }
 
     companion object {

@@ -92,6 +92,49 @@ class FrameVotingTest {
         assertEquals(listOf(tag, misread), state.confirmed)
     }
 
+    // --- carried readings ---------------------------------------------------
+    @Test
+    fun `a carried reading holds a price on screen without adding evidence`() {
+        // Box tracking reuses an earlier reading instead of running the
+        // recognizer again. That keeps the price on screen, but it is the same
+        // observation over and over, so it must not raise the score.
+        var state = run(listOf(tag), listOf(tag), listOf(tag))
+        assertEquals(listOf(tag), state.confirmed)
+        val scoreWhenConfirmed = state.votes.single().score
+
+        repeat(5) {
+            state = state.observe(listOf(tag), VoteSettings(), fresh = emptySet())
+        }
+        assertEquals(listOf(tag), state.confirmed, "a carried price should stay on screen")
+        assertEquals(scoreWhenConfirmed, state.votes.single().score, "but earn nothing")
+    }
+
+    @Test
+    fun `a bad reading cannot confirm itself by being carried forward`() {
+        // The trap this whole arrangement exists to avoid: one wrong
+        // recognition, copied into the next frames by the tracker, would look
+        // exactly like several frames agreeing.
+        var state = VoteState().observe(listOf(misread))
+        repeat(10) {
+            state = state.observe(listOf(misread), VoteSettings(), fresh = emptySet())
+        }
+        assertTrue(
+            state.confirmed.isEmpty(),
+            "a single recognition confirmed itself by repetition: ${state.confirmed}",
+        )
+    }
+
+    @Test
+    fun `a price first seen on a carried line waits for a real reading`() {
+        var state = VoteState()
+        repeat(5) { state = state.observe(listOf(tag), VoteSettings(), fresh = emptySet()) }
+        assertTrue(state.confirmed.isEmpty())
+
+        // Three independent readings and it appears, as it always would have.
+        repeat(3) { state = state.observe(listOf(tag)) }
+        assertEquals(listOf(tag), state.confirmed)
+    }
+
     @Test
     fun `two prices in view are tracked apart`() {
         val state = run(listOf(tag, other), listOf(tag, other), listOf(tag, other))
