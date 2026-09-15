@@ -346,6 +346,19 @@ function currencyFromMarkup(doc, isKnownCode) {
 // So the measurement has to be of the match itself, which means being able to
 // point at it in the DOM — hence the map below.
 
+// Shops set the minor unit as a superscript and let the markup carry the
+// decimal point: maxi.rs writes <div>189</div><sup>99</sup><div>RSD</div> for
+// 189,99 RSD, and reading that as text gives "18999RSD" — a hundred times the
+// real price. Where the digits are raised, the separator is put back.
+function isRaisedMinorUnit(node) {
+  const parent = node.parentElement;
+  if (!parent) return false;
+  if (!/^\d{1,2}$/.test(node.nodeValue.trim())) return false;
+  if (parent.tagName === "SUP") return true;
+  const view = parent.ownerDocument.defaultView;
+  return view ? view.getComputedStyle(parent).verticalAlign === "super" : false;
+}
+
 // Collapses whitespace the way the scan does, while keeping, for every
 // character of the result, the node and offset it came from.
 function collapsePriceText(el) {
@@ -357,6 +370,13 @@ function collapsePriceText(el) {
   let node;
   while ((node = walker.nextNode())) {
     const value = node.nodeValue;
+
+    // Only right after the whole part of a number, so a footnote marker or an
+    // exponent elsewhere in the text is left alone.
+    if (/\d$/.test(text) && !pendingSpace && isRaisedMinorUnit(node)) {
+      text += ",";
+      map.push({ node, offset: value.search(/\S/) });
+    }
     for (let i = 0; i < value.length; i++) {
       if (/\s/u.test(value[i])) {
         // Leading whitespace is dropped, and a run of it becomes one space —

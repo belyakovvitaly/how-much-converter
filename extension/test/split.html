@@ -21,6 +21,10 @@
       #stage .sr { position: absolute; width: 1px; height: 1px; overflow: hidden;
         clip-path: inset(50%); white-space: nowrap; }
       #stage .gone { display: none; }
+      /* How maxi.rs sets a price: the minor unit raised, no separator in text. */
+      #stage .big { font-size: 24px; }
+      #stage sup, #stage .raised { font-size: 12px; vertical-align: super; }
+      #stage .pricebox { display: flex; align-items: baseline; }
     </style>
   </head>
   <body>
@@ -63,6 +67,10 @@
             '<div><div class="block">Ár Ft</div><div class="block">2373 termék</div></div>', false],
           ["a whole price in one block, a count in the next",
             '<div><span class="block">57.249 TL</span><span class="block">10 yorum</span></div>', true],
+          ["minor unit raised into a <sup> (maxi.rs)",
+            '<div class="pricebox"><div class="big">189</div><sup>99</sup><div>RSD</div></div>', true],
+          ["minor unit raised by vertical-align alone",
+            '<div><span class="big">189</span><span class="raised">99</span><span>RSD</span></div>', true],
           ["not rendered at all: nothing to see, so nothing to annotate",
             '<div class="hidden"><span>Gs</span><span>23.000</span></div>', false],
         ];

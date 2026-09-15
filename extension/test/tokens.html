@@ -97,6 +97,11 @@
           ["R$ 89,90", "ZAR", "BRL", 89.9],
           ["R$ 89,90", null, "BRL", 89.9],
 
+          // --- the separator a superscript markup leaves out (maxi.rs) ---
+          ["189,99RSD", null, "RSD", 189.99],
+          ["189,99 RSD/kilogram", null, "RSD", 189.99],
+          ["18999RSD", null, "RSD", 18999],
+
           // --- a price with no currency in it at all (ikea.com/se) ---
           ["3 795:-", "SEK", "SEK", 3795],
           ["1 295:-", "SEK", "SEK", 1295],

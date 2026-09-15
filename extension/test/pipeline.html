@@ -16,6 +16,9 @@
       #page .money { display: inline-flex; }
       #page .money > span { display: block; }
       #page .row { display: flex; justify-content: space-between; width: 320px; }
+      #page .pricebox { display: flex; align-items: baseline; }
+      #page .pricebox .big { font-size: 24px; }
+      #page .pricebox sup { font-size: 12px; vertical-align: super; }
       #page .sr { position: absolute; width: 1px; height: 1px; overflow: hidden;
         clip-path: inset(50%); white-space: nowrap; }
     </style>
@@ -33,13 +36,14 @@
       <p id="flex">Antes: <span class="money"><span>$</span><span>399.999</span></span></p>
       <p id="euro">Import price: €10,00</p>
       <div class="row" id="filter"><span>4 000+ kr</span><span class="sr">126 produkter</span><span>126</span></div>
+      <div id="raised" class="pricebox"><div class="big">189</div><sup>99</sup><div>RSD</div></div>
       <p id="nothing">42 items in stock</p>
       <p id="unknown">Code 500 USDT</p>
     </div>
 
     <script>
       // Everything content.js needs from the extension API, and nothing else.
-      const RATES = { base: "USD", rates: { USD: 1, ARS: 1000, EUR: 0.9, SEK: 10 } };
+      const RATES = { base: "USD", rates: { USD: 1, ARS: 1000, EUR: 0.9, SEK: 10, RSD: 100 } };
       window.chrome = {
         storage: {
           local: {
@@ -63,11 +67,15 @@
           return tag ? tag.textContent.trim() : null;
         };
 
-        // [name, id, should it have been converted?]
+        // [name, id, converted?, and what the conversion must say]
         const cases = [
           ["a price in running text", "plain", true],
           ["a flex-built price, the mercadolibre.com.ar shape", "flex", true],
           ["an unambiguous symbol", "euro", true],
+          // 189,99 RSD at 100 to the dollar is $1.90. Read as "18999" — which is
+          // what the markup says before the separator is put back — it would be
+          // $189.99, so the amount is the whole point of this one.
+          ["a minor unit raised into a <sup> (maxi.rs)", "raised", true, "1.90"],
           ["a filter label run into a hidden count (ikea.com/se)", "filter", false],
           ["a number that is not a price", "nothing", false],
           ["a ticker that is not a currency", "unknown", false],
@@ -75,12 +83,13 @@
 
         function report() {
           let fail = 0;
-          const lines = cases.map(([name, id, want]) => {
+          const lines = cases.map(([name, id, want, mustSay]) => {
             const got = conv(id);
-            const ok = want === (got !== null);
+            let ok = want === (got !== null);
+            if (ok && mustSay && !String(got).includes(mustSay)) ok = false;
             if (!ok) fail++;
             return `${ok ? "ok  " : "FAIL"}  ${name.padEnd(48, " ")} ${got === null ? "(not converted)" : got}` +
-              (ok ? "" : `   (expected ${want ? "a conversion" : "none"})`);
+              (ok ? "" : `   (expected ${want ? mustSay || "a conversion" : "none"})`);
           });
           document.getElementById("out").textContent = lines.join("\n");
           const summary = document.getElementById("summary");
