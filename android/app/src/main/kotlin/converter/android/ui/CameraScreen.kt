@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import converter.android.ocr.OcrEngine
+import converter.core.LocatedPrice
 import converter.core.Price
 import converter.core.PriceContext
 import converter.core.RateTable
@@ -53,7 +54,7 @@ import converter.core.VoteState
 import converter.core.observe
 import converter.core.convert
 import converter.core.formatConverted
-import converter.core.readPrices
+import converter.core.locatePrices
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicLong
@@ -61,7 +62,10 @@ import java.util.concurrent.atomic.AtomicLong
 /** What the frames so far agree on. */
 data class FrameState(
     /** Confirmed by several frames, not just read once — see [VoteState]. */
-    val prices: List<Price> = emptyList(),
+    val prices: List<LocatedPrice> = emptyList(),
+    /** The analysed frame's size, which the overlay maps onto the view. */
+    val imageWidth: Int = 0,
+    val imageHeight: Int = 0,
     /** How many readings the last frame produced, confirmed or not. */
     val readLastFrame: Int = 0,
     /** How many of the last frame's lines were carried rather than read. */
@@ -106,6 +110,13 @@ fun CameraScreen(
         if (granted) {
             var frame by remember { mutableStateOf(FrameState()) }
             CameraPreview(engine, source) { frame = it }
+            PriceOverlay(
+                prices = frame.prices,
+                imageWidth = frame.imageWidth,
+                imageHeight = frame.imageHeight,
+                rates = rates,
+                target = target,
+            )
             ReadingPanel(
                 engine = engine,
                 frame = frame,
@@ -144,13 +155,24 @@ private fun CameraPreview(
     // A reading has to be seen in several frames before it is shown. Held in an
     // AtomicReference because the analyser runs off the main thread.
     val votes = remember { AtomicReference(VoteState()) }
+    // Where each price was last seen. The voting decides *what* to show and
+    // keeps a price for a few frames after it goes missing; this remembers
+    // where to draw it meanwhile, so a label does not vanish and reappear as
+    // the camera wobbles.
+    val positions = remember { AtomicReference(emptyMap<Price, converter.core.Box>()) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val seen = remember { AtomicLong(0) }
 
     androidx.compose.ui.viewinterop.AndroidView(
         modifier = Modifier.fillMaxSize(),
         factory = { ctx ->
-            val previewView = PreviewView(ctx)
+            val previewView = PreviewView(ctx).apply {
+                // The overlay maps the analysed frame onto this view, and that
+                // mapping only holds if the whole frame is on screen. The
+                // default crops it, which would put a price the camera read
+                // outside the picture the reader is looking at.
+                scaleType = PreviewView.ScaleType.FIT_CENTER
+            }
             val providerFuture = ProcessCameraProvider.getInstance(ctx)
             providerFuture.addListener({
                 val provider = providerFuture.get()
@@ -184,17 +206,31 @@ private fun CameraPreview(
                         val lines = currentEngine.value.recognize(frame)
                         frame.recycle()
                         val context = PriceContext(pageCurrency = currentSource.value)
-                        val prices = readPrices(lines, context)
+                        val located = locatePrices(lines, context)
+                        val prices = located.map { it.price }
                         // Prices whose text this frame actually read, as opposed
                         // to carried over from the last one. Only these count
                         // towards confirming a reading.
-                        val fresh = readPrices(lines.filterNot { it.reused }, context).toSet()
+                        val fresh = locatePrices(lines.filterNot { it.reused }, context)
+                            .mapTo(mutableSetOf()) { it.price }
                         val agreed = votes.updateAndGet {
                             it.observe(prices, VoteSettings(), fresh)
                         }
+
+                        val stillTracked = agreed.votes.mapTo(mutableSetOf()) { it.price }
+                        val where = positions.updateAndGet { previous ->
+                            (previous + located.associate { it.price to it.box })
+                                .filterKeys { it in stillTracked }
+                        }
+                        val confirmed = agreed.confirmed.mapNotNull { price ->
+                            where[price]?.let { LocatedPrice(price, it) }
+                        }
+
                         onFrame(
                             FrameState(
-                                prices = agreed.confirmed,
+                                prices = confirmed,
+                                imageWidth = frame.width,
+                                imageHeight = frame.height,
                                 readLastFrame = prices.size,
                                 reusedLastFrame = lines.count { it.reused },
                                 framesSeen = seen.incrementAndGet(),
@@ -240,30 +276,32 @@ private fun ReadingPanel(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        if (frame.prices.isEmpty()) {
-            Text(
+        when {
+            frame.prices.isEmpty() -> Text(
                 text = if (frame.readLastFrame > 0) "Reading\u2026" else "No price in view",
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium,
             )
-        } else {
-            for (price in frame.prices) {
-                val converted = rates?.convert(price.amount, price.code, target)
-                Text(
-                    text = buildString {
-                        append(formatConverted(price.amount, price.code))
-                        // Only when there is a rate for the pair. An unconverted
-                        // price is still worth showing; a made-up one is not.
-                        if (converted != null) {
-                            append("  \u2248  ")
-                            append(formatConverted(converted, target))
-                        }
-                    },
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            if (rates == null) {
+
+            // With rates, the conversions are drawn over the prices themselves;
+            // repeating them here would say the same thing twice.
+            rates != null -> Text(
+                text = if (frame.prices.size == 1) "1 price converted"
+                       else "${frame.prices.size} prices converted",
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+            )
+
+            // Without rates there is nothing to draw, so the panel is the only
+            // place the reading can appear at all.
+            else -> {
+                for (located in frame.prices) {
+                    Text(
+                        text = formatConverted(located.price.amount, located.price.code),
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
                 Text(
                     text = "No rates yet — showing what was read",
                     color = Color(0xFFFFB74D),

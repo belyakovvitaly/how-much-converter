@@ -127,16 +127,31 @@ fun parseAmount(raw: String): Double? {
     return s.toDoubleOrNull()?.takeIf { it.isFinite() }
 }
 
-/** Every price in a run of text. */
-fun findPrices(
+/** A price and where in the text it was written. */
+data class FoundPrice(val price: Price, val range: IntRange)
+
+/**
+ * Every price in a run of text, with the span each one occupies.
+ *
+ * The span is what lets a caller say *where* a price is on the screen rather
+ * than only that it is there.
+ */
+fun findPricesWithRanges(
     text: String,
     context: PriceContext = PriceContext(),
     regex: Regex = PRICE_REGEX,
-): List<Price> = regex.findAll(text).mapNotNull { match ->
+): List<FoundPrice> = regex.findAll(text).mapNotNull { match ->
     val groups = match.groupValues
     val token = groups[1].ifEmpty { groups[4] }
     val number = groups[2].ifEmpty { groups[3] }
     val code = resolveSymbol(token, context) ?: return@mapNotNull null
     val amount = parseAmount(number) ?: return@mapNotNull null
-    Price(amount, code)
+    FoundPrice(Price(amount, code), match.range)
 }.toList()
+
+/** Every price in a run of text. */
+fun findPrices(
+    text: String,
+    context: PriceContext = PriceContext(),
+    regex: Regex = PRICE_REGEX,
+): List<Price> = findPricesWithRanges(text, context, regex).map { it.price }

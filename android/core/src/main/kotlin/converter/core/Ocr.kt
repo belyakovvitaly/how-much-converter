@@ -49,6 +49,29 @@ val HOMOGLYPHS: Map<String, String> = mapOf(
     "Є" to "EUR",
 )
 
+/** A run of text that reads as one phrase, and where each piece of it sits. */
+data class MergedText(
+    val text: String,
+    /** The whole run, for a caller that does not care which piece is which. */
+    val box: Box,
+    /** Each source line's span within [text], so a match can be placed. */
+    val parts: List<Part>,
+) {
+    data class Part(val range: IntRange, val box: Box)
+
+    /** The smallest box covering every piece the given span touches. */
+    fun boxFor(range: IntRange): Box {
+        val touched = parts.filter { it.range.first <= range.last && range.first <= it.range.last }
+        if (touched.isEmpty()) return box
+        return Box(
+            x0 = touched.minOf { it.box.x0 },
+            y0 = touched.minOf { it.box.y0 },
+            x1 = touched.maxOf { it.box.x1 },
+            y1 = touched.maxOf { it.box.y1 },
+        )
+    }
+}
+
 /**
  * Clusters boxes into visual rows, then walks each row left to right and breaks
  * it wherever the horizontal gap is too wide to be one phrase.
@@ -63,7 +86,7 @@ val HOMOGLYPHS: Map<String, String> = mapOf(
  * which is what once turned "1 299" into "299" — a wrong price, which is worse
  * than no price.
  */
-fun mergeBoxes(lines: List<OcrLine>): List<String> {
+fun mergeBoxes(lines: List<OcrLine>): List<MergedText> {
     data class Row(var y0: Double, var y1: Double, val items: MutableList<OcrLine>)
 
     val placed = lines.filter { it.box != null && it.text.isNotBlank() }
@@ -85,29 +108,114 @@ fun mergeBoxes(lines: List<OcrLine>): List<String> {
         }
     }
 
-    val out = mutableListOf<String>()
+    val out = mutableListOf<MergedText>()
+
+    fun flush(group: List<OcrLine>) {
+        if (group.isEmpty()) return
+        val builder = StringBuilder()
+        val parts = mutableListOf<MergedText.Part>()
+        for (line in group) {
+            if (builder.isNotEmpty()) builder.append(' ')
+            val start = builder.length
+            builder.append(line.text)
+            parts += MergedText.Part(start until builder.length, line.box!!)
+        }
+        out += MergedText(
+            text = builder.toString(),
+            box = Box(
+                x0 = group.minOf { it.box!!.x0 },
+                y0 = group.minOf { it.box!!.y0 },
+                x1 = group.maxOf { it.box!!.x1 },
+                y1 = group.maxOf { it.box!!.y1 },
+            ),
+            parts = parts,
+        )
+    }
+
     for (row in rows) {
         row.items.sortBy { it.box!!.x0 }
-        var group = mutableListOf<String>()
+        var group = mutableListOf<OcrLine>()
         var groupX1 = Double.NaN
         var groupHeight = 0.0
         for (line in row.items) {
             val box = line.box!!
             if (group.isNotEmpty() && box.x0 - groupX1 > 1.2 * maxOf(box.height, groupHeight)) {
-                out += group.joinToString(" ")
+                flush(group)
                 group = mutableListOf()
                 groupX1 = Double.NaN
                 groupHeight = 0.0
             }
-            group += line.text
+            group += line
             groupX1 = if (groupX1.isNaN()) box.x1 else maxOf(groupX1, box.x1)
             groupHeight = maxOf(groupHeight, box.height)
         }
-        if (group.isNotEmpty()) out += group.joinToString(" ")
+        flush(group)
     }
     return out
 }
 
+/** A price and the part of the image it was read from. */
+data class LocatedPrice(val price: Price, val box: Box)
+
+/**
+ * Reads the prices out of one engine's output, keeping where each one sits.
+ *
+ * Position is what lets the conversion be drawn over the price itself rather
+ * than listed somewhere else on the screen.
+ */
+fun locatePrices(
+    lines: List<OcrLine>,
+    context: PriceContext = PriceContext(),
+    merge: Boolean = true,
+    homoglyphs: Boolean = true,
+    minConfidence: Double = 0.0,
+): List<LocatedPrice> {
+    // Filtered before merging: a dropped fragment must not join a group either.
+    val kept = if (minConfidence > 0.0) lines.filter { it.confidence >= minConfidence }
+               else lines
+
+    val runs: List<MergedText> = if (merge) {
+        mergeBoxes(kept)
+    } else {
+        kept.mapNotNull { line ->
+            val box = line.box ?: return@mapNotNull null
+            MergedText(line.text, box, listOf(MergedText.Part(line.text.indices, box)))
+        }
+    }
+
+    val resolved = if (homoglyphs) {
+        PriceContext(
+            pageCurrency = context.pageCurrency,
+            dollarAssumption = context.dollarAssumption,
+            isKnownCode = { token -> HOMOGLYPHS[token] ?: context.isKnownCode(token) },
+        )
+    } else {
+        context
+    }
+    val regex = if (homoglyphs) OCR_PRICE_REGEX else PRICE_REGEX
+
+    return runs.flatMap { run ->
+        findPricesWithRanges(run.text, resolved, regex).map { found ->
+            LocatedPrice(found.price, run.boxFor(found.range))
+        }
+    }
+}
+
+/**
+ * Reads the prices out of one engine's output for one image.
+ *
+ * [homoglyphs] is on by default because no recognizer this project measured
+ * gets the currency glyphs right on its own, and [merge] because a large price
+ * is routinely split in two.
+ *
+ * [minConfidence] defaults to off, and the benchmark is why. A confidence gate
+ * looks like the obvious guard against a wrong price and is not one: on the
+ * corpus it never removes a wrong reading before it starts removing right ones.
+ * Tesseract's one invented price — "799 руб." read as "199 руб." — is reported
+ * at 0.90 confidence, while the seven Vision lines that sit at 0.50 are all
+ * correct. Gating Vision above 0.5 costs five real prices and removes nothing.
+ * ConfidenceGateTest pins that, so the idea is not quietly reintroduced.
+ */
 /**
  * Reads the prices out of one engine's output for one image.
  *
@@ -129,23 +237,8 @@ fun readPrices(
     merge: Boolean = true,
     homoglyphs: Boolean = true,
     minConfidence: Double = 0.0,
-): List<Price> {
-    // Filtered before merging: a dropped fragment must not join a group either.
-    val kept = if (minConfidence > 0.0) lines.filter { it.confidence >= minConfidence }
-               else lines
-    val texts = if (merge) mergeBoxes(kept) else kept.map { it.text }
-    val resolved = if (homoglyphs) {
-        PriceContext(
-            pageCurrency = context.pageCurrency,
-            dollarAssumption = context.dollarAssumption,
-            isKnownCode = { token -> HOMOGLYPHS[token] ?: context.isKnownCode(token) },
-        )
-    } else {
-        context
-    }
-    val regex = if (homoglyphs) OCR_PRICE_REGEX else PRICE_REGEX
-    return texts.flatMap { findPrices(it, resolved, regex) }
-}
+): List<Price> =
+    locatePrices(lines, context, merge, homoglyphs, minConfidence).map { it.price }
 
 /**
  * The price pattern widened by the homoglyph tokens. They have to be in the

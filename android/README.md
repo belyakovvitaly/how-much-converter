@@ -158,6 +158,32 @@ failure, not as rates.
 else. It keeps the response as the raw JSON it arrived as, so there is only one
 parser to agree with.
 
+## The conversion goes on the price
+
+The converted amount is drawn over the price it was read from, not listed under
+the viewfinder. With several prices on a shelf, a list makes the reader match
+labels to tags themselves, which is most of the work; put the answer where the
+question is and there is nothing to match up.
+
+Three pieces make that possible, and each is in `:core` where it can be checked
+without a camera:
+
+- `locatePrices` keeps the box a price was read from. Merging remembers which
+  span of the joined text came from which line, so two prices on one line get
+  their own boxes rather than a shared one, and a price split across boxes gets
+  both.
+- `Viewport` maps image pixels onto the view showing them. The preview is set to
+  fit rather than fill: filling crops the frame, and a price the camera read in
+  the cropped part would be converted and then drawn off-screen.
+- The analyser remembers where each price was last seen, so a label stays put
+  through the frames the voting keeps a price alive after it stops being read.
+
+`PriceOverlayTest` renders the overlay over a frame of known size and checks the
+pixels, because a label fifty pixels off still draws, still says the right
+number, and still points at the wrong thing — a mistake no other test here can
+see. Nothing is drawn for a price with no rate: a label repeating the tag would
+be clutter, and one guessing would be worse.
+
 ## Two currencies, not one
 
 The app exists for one situation: standing in another country, where the prices
