@@ -63,13 +63,19 @@ prepared in this file.
 >
 > • Works on any site — supermarkets, marketplaces, listings, news.
 > • Understands currency symbols and ISO codes on either side of the number
->   ($5, 5 USD, €5, 5 €, Gs 23.000, ₽500).
-> • Understands local number formats: 1,234.56 and 1.234,56 are both read
->   correctly.
+>   ($5, 5 USD, €5, 5 €, Gs 23.000, ₽500), and the codes shops write instead of
+>   a symbol (57.249 TL, 399 990 Ft, Rp 9.499.000, 129.98 rsd).
+> • Understands local number formats: 1,234.56, 1.234,56 and 1'234.56 are all
+>   read correctly — as are the shapes shops invent, like a superscript minor
+>   unit (189⁹⁹ RSD), a dash where the cents go (1.449,–) and Sweden's 429:-,
+>   which names no currency at all.
 > • Handles prices that a site splits across page elements, which is how most
 >   store templates are actually built.
-> • A bare "$" is ambiguous — much of Latin America prints it and means a peso.
->   Tell the extension what "$" should mean on the sites you use.
+> • Several countries share a symbol — much of Latin America prints "$" and
+>   means a peso, "¥" is both yen and yuan, "kr" belongs to three Nordic
+>   countries. The extension works out which one a page is priced in from the
+>   page itself, and leaves a price alone rather than guess when it cannot tell.
+>   You can still say what "$" should mean, if you would rather decide.
 > • Recognizes currencies that are spelled out rather than signed (340 руб).
 > • Rates come from a public exchange-rate service and are cached for six
 >   hours; refresh them yourself any time from the popup.
