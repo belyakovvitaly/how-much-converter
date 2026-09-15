@@ -1,8 +1,13 @@
 # Android app
 
-Two modules. `:core` holds the price rules and is done enough to be under test;
-`:app` is the camera shell around them, and is still missing the one thing that
-makes it useful — a recognizer.
+Two modules. `:core` holds the price rules — what counts as a currency token,
+how a number is spelled, which frames agree — and is the part iOS will share.
+`:app` is the camera and the recognizer around them.
+
+It reads prices off a live camera and shows them converted. What it has not yet
+had is a day in a real shop: everything below was measured on fixed images and
+an emulator, and the parts built around movement — frame voting, box tracking —
+have never met any.
 
 ```sh
 ./gradlew :core:test        # the price rules, against the benchmark's numbers
