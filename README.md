@@ -66,6 +66,33 @@ extension's own price rules would have produced the right conversion, counting a
 wrong price separately from a missed one. [`android/README.md`](android/README.md)
 has the numbers, the build, and the things that turned out not to work.
 
+## Install the Android app
+
+Not in Google Play — it installs from the APK on the
+[Releases page](https://github.com/belyakovvitaly/how-much-converter/releases),
+under a tag beginning `android-`.
+
+1. Download `how-much-android-<version>.apk` onto the phone.
+2. Open it. Android will ask whether to allow installing apps from wherever you
+   downloaded it; that permission is per-app and can be turned off again after.
+3. Allow the camera when it asks. The rates need the network once every six
+   hours; nothing else leaves the phone.
+
+Worth knowing:
+
+- **64-bit ARM only**, which is every phone made in the last decade but not the
+  oldest 32-bit ones. Android 8.0 or newer.
+- It is a debug build, signed with the standard debug key. That is what lets it
+  be sideloaded at all without a keystore, and it is also why Play Protect may
+  warn about it.
+- About 62 MB, most of which is the recognizer's native library and 13 MB of
+  models. It reads without the network and there is nothing to download on first
+  run.
+
+Building it yourself needs an Android SDK and one extra step — the OCR models
+are generated, not committed — both described in
+[`android/README.md`](android/README.md).
+
 ## Install the extension
 
 Not in the Chrome Web Store yet — see [STORE.md](STORE.md) for what a submission
