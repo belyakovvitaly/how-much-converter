@@ -19,6 +19,12 @@ data class PriceContext(
     val pageCurrency: String? = null,
     val dollarAssumption: String = "auto",
     val isKnownCode: (String) -> String? = ::defaultKnownCode,
+    /**
+     * The currency of amounts written with none, or null to leave them alone.
+     * Set only when the reader says so — for a receipt — since anywhere else a
+     * bare number is as likely a weight or a code as a price.
+     */
+    val bareAmounts: String? = null,
 )
 
 private val CURRENCY_CODE_SET = CURRENCY_CODES.toSet()

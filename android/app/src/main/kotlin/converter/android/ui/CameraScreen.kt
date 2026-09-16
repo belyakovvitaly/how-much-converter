@@ -305,7 +305,7 @@ private fun ReadingPanel(
  * itself.
  */
 @Composable
-private fun CurrencyBar(
+internal fun CurrencyBar(
     source: String?,
     target: String,
     onChangeSource: () -> Unit,

@@ -184,38 +184,27 @@ fun locatePrices(
     }
 
     val resolved = if (homoglyphs) {
-        PriceContext(
-            pageCurrency = context.pageCurrency,
-            dollarAssumption = context.dollarAssumption,
-            isKnownCode = { token -> HOMOGLYPHS[token] ?: context.isKnownCode(token) },
-        )
+        context.copy(isKnownCode = { token -> HOMOGLYPHS[token] ?: context.isKnownCode(token) })
     } else {
         context
     }
     val regex = if (homoglyphs) OCR_PRICE_REGEX else PRICE_REGEX
 
     return runs.flatMap { run ->
-        findPricesWithRanges(run.text, resolved, regex).map { found ->
-            LocatedPrice(found.price, run.boxFor(found.range))
+        val found = findPricesWithRanges(run.text, resolved, regex)
+        // A number that already has a currency keeps it; only the rest are
+        // taken to be in the receipt's.
+        val bare = context.bareAmounts?.let { code ->
+            findBareAmounts(run.text)
+                .filter { amount -> found.none { it.range.overlaps(amount.range) } }
+                .map { FoundPrice(Price(it.amount, code), it.range) }
+        }.orEmpty()
+        (found + bare).sortedBy { it.range.first }.map {
+            LocatedPrice(it.price, run.boxFor(it.range))
         }
     }
 }
 
-/**
- * Reads the prices out of one engine's output for one image.
- *
- * [homoglyphs] is on by default because no recognizer this project measured
- * gets the currency glyphs right on its own, and [merge] because a large price
- * is routinely split in two.
- *
- * [minConfidence] defaults to off, and the benchmark is why. A confidence gate
- * looks like the obvious guard against a wrong price and is not one: on the
- * corpus it never removes a wrong reading before it starts removing right ones.
- * Tesseract's one invented price — "799 руб." read as "199 руб." — is reported
- * at 0.90 confidence, while the seven Vision lines that sit at 0.50 are all
- * correct. Gating Vision above 0.5 costs five real prices and removes nothing.
- * ConfidenceGateTest pins that, so the idea is not quietly reintroduced.
- */
 /**
  * Reads the prices out of one engine's output for one image.
  *
@@ -239,6 +228,9 @@ fun readPrices(
     minConfidence: Double = 0.0,
 ): List<Price> =
     locatePrices(lines, context, merge, homoglyphs, minConfidence).map { it.price }
+
+private fun IntRange.overlaps(other: IntRange) =
+    first <= other.last && other.first <= last
 
 /**
  * The price pattern widened by the homoglyph tokens. They have to be in the

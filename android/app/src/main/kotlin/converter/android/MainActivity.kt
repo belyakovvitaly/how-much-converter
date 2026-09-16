@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
                     var chosenHome by remember { mutableStateOf(currencies.home) }
                     var picking by remember { mutableStateOf<Picking?>(null) }
                     var still by remember { mutableStateOf<Still?>(null) }
+                    var receipt by rememberSaveable { mutableStateOf(false) }
                     val scope = rememberCoroutineScope()
 
                     // What the prices are in, and what to turn them into. Not
@@ -100,15 +102,14 @@ class MainActivity : ComponentActivity() {
                         }
                         still = Still.Working(image)
                         scope.launch {
-                            val prices = withContext(Dispatchers.Default) {
+                            val lines = withContext(Dispatchers.Default) {
                                 val current = engine
                                 current.reset()
                                 // Thorough: a still has no next frame to defer
                                 // the rest of the reading to.
-                                val lines = current.recognize(image, thorough = true)
-                                locatePrices(lines, PriceContext(pageCurrency = source))
+                                current.recognize(image, thorough = true)
                             }
-                            still = Still.Read(image, prices)
+                            still = Still.Read(image, lines)
                         }
                     }
 
@@ -143,10 +144,34 @@ class MainActivity : ComponentActivity() {
                     )
 
                     still?.let { current ->
+                        // Worked out again when a currency or the receipt
+                        // switch changes; the reading itself is kept.
+                        val lines = (current as? Still.Read)?.lines.orEmpty()
+                        val prices = remember(lines, source, receipt) {
+                            locatePrices(
+                                lines,
+                                PriceContext(
+                                    pageCurrency = source,
+                                    bareAmounts = if (receipt) source else null,
+                                ),
+                            )
+                        }
                         StillScreen(
                             still = current,
+                            prices = prices,
                             rates = rates,
+                            source = source,
                             target = target,
+                            receipt = receipt,
+                            onReceiptChange = { on ->
+                                receipt = on
+                                // A receipt names no currency, so there is
+                                // nothing to read its amounts in until one is
+                                // chosen.
+                                if (on && source == null) picking = Picking.Source
+                            },
+                            onChangeSource = { picking = Picking.Source },
+                            onChangeTarget = { picking = Picking.Target },
                             onClose = { still = null },
                         )
                     }

@@ -224,6 +224,36 @@ Two things a still needs that a frame does not:
   camera keeps running, and two readings sharing one tracker would carry text
   from one picture onto another.
 
+## A receipt, where the currency is printed nowhere
+
+A shop's receipt is mostly amounts with no currency beside them, so the photo
+screen has a **Receipt** switch, with the two currencies next to it. With it on,
+every number written to the cent is taken to be in the source currency; with no
+source currency known, turning it on opens the picker, since there is nothing
+to read the amounts in until one is chosen.
+
+It is a switch and not a guess. Anywhere but a receipt a bare number is as
+likely a weight or a code as a price, and reading those as money is the wrong
+price this project refuses. [`findBareAmounts`](core/src/main/kotlin/converter/core/Receipts.kt)
+is what decides which numbers are amounts, and a receipt is dense with numbers
+that are not — dates, times, weights, article codes, tax IDs:
+
+- **Exactly two decimals, standing alone.** `32648,00` and `-9794,40` are
+  amounts; `0.654`, `10/09/2026`, `13:24:07` and `30-54808315-6` are not.
+- **A number before a multiplication sign is a quantity.** In
+  `2,50 x 14000,00` only the price per kilo is converted.
+- **A discount keeps its minus**, and the conversion shows it.
+- **`0,00` is skipped**: change not given says nothing worth a label.
+- **A currency printed on the receipt still wins** over the switch.
+
+The recognizer's lines are kept with the photograph, so changing a currency or
+the switch re-reads the prices from them without reading the picture again.
+
+`ReceiptTest` holds these rules to the lines of a real supermarket receipt.
+Checked on the emulator against a rendering of the same lines: eight amounts
+converted, the dates, weights and codes left alone. What has not been checked is
+a photograph of one — thermal paper, curled, in a hand.
+
 ## The conversion goes on the price
 
 The converted amount is drawn over the price it was read from, not listed under

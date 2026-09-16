@@ -137,13 +137,15 @@ fun formatConverted(amount: Double, code: String): String {
         abs(amount) >= 100 -> 0
         else -> 2
     }
+    // The sign is written separately: a discount of half a unit has no whole
+    // part to carry it.
+    val size = abs(amount)
     val rounded = if (digits == 0) {
-        round(amount).toLong().toString()
+        round(size).toLong().toString()
     } else {
-        val scaled = round(amount * 100) / 100
-        val whole = scaled.toLong()
-        val cents = round(abs(scaled - whole) * 100).toLong()
-        "$whole.${cents.toString().padStart(2, '0')}"
+        val cents = round(size * 100).toLong()
+        "${cents / 100}.${(cents % 100).toString().padStart(2, '0')}"
     }
-    return "$rounded $code"
+    val sign = if (amount < 0 && rounded.any { it in '1'..'9' }) "-" else ""
+    return "$sign$rounded $code"
 }
