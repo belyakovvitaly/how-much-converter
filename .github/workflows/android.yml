@@ -1,0 +1,77 @@
+# Builds the Android APK and attaches it to a release.
+#
+# The extension's workflow answers to `v*`; this one answers to `android-v*`, so
+# the two can be released apart. It also runs on demand, which is how it gets
+# tested without inventing a version to tag.
+name: Android
+
+on:
+  push:
+    tags: ["android-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Check the tag matches the app's version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag="${GITHUB_REF_NAME#android-v}"
+          app=$(sed -n 's/.*versionName[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
+                android/app/build.gradle.kts | head -1)
+          if [ "$tag" != "$app" ]; then
+            echo "tag $tag != versionName $app" >&2
+            exit 1
+          fi
+
+      - name: Check the generated tables are current
+        # The Kotlin tables are written from extension/src/currency.js. If the
+        # JavaScript has moved and the Kotlin has not, the app and the extension
+        # disagree about what a price is, and this is where that shows up.
+        run: ./tools/gen-currency-kt.py --check
+
+      - name: Install the SDK pieces the build asks for
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-37.0" "build-tools;36.0.0" > /dev/null
+
+      - name: Test the shared rules
+        working-directory: android
+        run: ./gradlew :core:test
+
+      - name: Build
+        working-directory: android
+        run: ./gradlew :app:assembleDebug
+
+      - name: Name the APK after the version it is
+        id: apk
+        run: |
+          version=$(sed -n 's/.*versionName[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
+                    android/app/build.gradle.kts | head -1)
+          name="how-much-android-$version.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          ls -l "$name"
+
+      - name: Keep it on the run, so a manual build can be downloaded
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: ${{ steps.apk.outputs.name }}
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ steps.apk.outputs.name }}
+          generate_release_notes: true

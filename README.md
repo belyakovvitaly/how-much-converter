@@ -89,9 +89,8 @@ Worth knowing:
   models. It reads without the network and there is nothing to download on first
   run.
 
-Building it yourself needs an Android SDK and one extra step — the OCR models
-are generated, not committed — both described in
-[`android/README.md`](android/README.md).
+Building it yourself needs an Android SDK and nothing else; the models are in
+the repository. See [`android/README.md`](android/README.md).
 
 ## Install the extension
 

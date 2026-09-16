@@ -28,11 +28,13 @@ emulator -avd how-much -camera-back virtualscene    # a scene with things to poi
 ./gradlew :app:installDebug
 ```
 
-Before the app will build, the OCR models have to be exported into its assets —
-they are build outputs, not sources, so they are not committed:
+The OCR models are committed — 12.7 MB of ONNX in `app/src/main/assets`, which
+is a fifth of one build of the APK and buys a clone that builds with nothing
+else installed, and a CI that can make a release without a Python toolchain and
+a model download. To change them:
 
 ```sh
-./tools/export-ocr-models.py     # writes det.onnx, rec.onnx, charset.txt
+./tools/export-ocr-models.py     # rewrites det.onnx, rec.onnx, charset.txt
 ```
 
 To put it on a phone, the debug APK is enough: it is signed with the debug key,

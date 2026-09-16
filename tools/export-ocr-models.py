@@ -8,9 +8,10 @@ there under that name is third-party repackaging.
     pip install paddlepaddle paddleocr paddle2onnx
     ./tools/export-ocr-models.py
 
-Writes det.onnx, rec.onnx and charset.txt to android/app/src/main/assets. Those
-are build outputs, not sources, so they are not committed; run this once after
-cloning, or whenever the models change.
+Writes det.onnx, rec.onnx and charset.txt to android/app/src/main/assets, which
+are committed. Run this only to change them — a clone builds as it stands, and
+so does CI, neither of which should need a Python toolchain and a model
+download to produce an APK.
 
 The Paddle models themselves come from PaddleOCR's own cache in
 ~/.paddlex/official_models, which fills the first time PaddleOCR runs. The
