@@ -1,5 +1,9 @@
 # How Much? — Currency Price Converter
 
+Prices, in the currency you think in. On a web page, and through a phone camera.
+
+## The extension
+
 A Chrome extension (Manifest V3) that scans the prices on any web page and shows
 them in the currency you care about, inline, next to the original:
 
@@ -31,8 +35,8 @@ result by hand.
 | Directory | What it holds |
 | --- | --- |
 | [`extension/`](extension) | The Chrome extension — everything that ships in the zip, plus its test pages. |
-| [`android/`](android) | The Android app. Not written yet; [`android/README.md`](android/README.md) records the engine decision it starts from. |
-| [`ios/`](ios) | The iOS app, likewise — see [`ios/README.md`](ios/README.md). |
+| [`android/`](android) | The Android app: `:core` holds the price rules, `:app` the camera and the recognizer. See [`android/README.md`](android/README.md). |
+| [`ios/`](ios) | The iOS app. Not written yet; [`ios/README.md`](ios/README.md) records the decisions it starts from. |
 | [`tools/`](tools) | Build, screenshot and icon scripts, and the [OCR benchmark](tools/ocr-bench) the phone versions are being designed against. |
 
 The phone apps read prices off a photo or the camera instead of the DOM, but the
@@ -40,7 +44,29 @@ hard-won part — the currency tables, the number grammar, what counts as a pric
 next to a number — is the same problem the extension already solved, so they are
 kept in one repository rather than three.
 
-## Install
+## The Android app
+
+Point it at a price and the converted amount is drawn over the price itself, the
+way a live translation is. It reads a photograph too, taken or chosen from the
+gallery.
+
+Two currencies, and they are not the same question: what the prices are in is
+detected from the country the phone is standing in, and what to convert into
+from the country it is *from*. That distinction is the whole point — abroad,
+converting the local currency into itself would be no help at all.
+
+Everything that reads runs on the phone: PP-OCRv5's mobile models through ONNX
+Runtime, with no account and no key. The only thing that leaves it is a request
+for the rate table, cached for six hours — never a picture, and nothing about
+where you are.
+
+Which recognizer, and why, was settled by measurement rather than by reading
+datasheets — [`tools/ocr-bench`](tools/ocr-bench) scores engines on whether the
+extension's own price rules would have produced the right conversion, counting a
+wrong price separately from a missed one. [`android/README.md`](android/README.md)
+has the numbers, the build, and the things that turned out not to work.
+
+## Install the extension
 
 Not in the Chrome Web Store yet — see [STORE.md](STORE.md) for what a submission
 needs. Until then it installs from a zip:
@@ -124,10 +150,11 @@ profile only, which also means it does not follow you to another machine.
 - Per-site currency overrides.
 - Hover tooltip with the rate and fetch time instead of inline text.
 - Offline fallback bundle of rates.
-- The phone versions in [`android/`](android) and [`ios/`](ios).
-  [`tools/ocr-bench`](tools/ocr-bench) has already settled which OCR engines
-  they can be built on, scoring them through the detection rules in
-  `extension/src/currency.js` rather than on raw text accuracy.
+- The iOS app in [`ios/`](ios). The price rules, the rates and the voting are
+  already shared code in `android/core`; what iOS needs of its own is the
+  recognizer, and the benchmark says Vision does that job without help.
+- Reading a tag seen at a steep angle. Rotation is handled; foreshortening is
+  not, and needs the region's quadrilateral rather than one angle.
 
 ## Privacy
 
