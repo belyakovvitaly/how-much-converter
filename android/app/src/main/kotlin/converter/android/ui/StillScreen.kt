@@ -1,6 +1,7 @@
 package converter.android.ui
 
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +44,9 @@ sealed interface Still {
  * The same overlay as the live camera, over a picture that holds still. A still
  * is read thoroughly rather than within a frame's budget — there is no next
  * frame to defer to, and no reason to hurry.
+ *
+ * Back — the arrow, or the system's gesture — returns to the camera. Only the
+ * camera itself lets back close the app.
  */
 @Composable
 fun StillScreen(
@@ -53,6 +56,8 @@ fun StillScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    BackHandler(onBack = onClose)
+
     Box(modifier.fillMaxSize().background(Color.Black)) {
         val image = when (still) {
             is Still.Working -> still.image
@@ -91,7 +96,7 @@ fun StillScreen(
                 .fillMaxWidth()
                 .background(Color(0xCC000000))
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
@@ -107,7 +112,16 @@ fun StillScreen(
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium,
             )
-            TextButton(onClick = onClose) { Text("Back to camera") }
         }
+
+        BackButton(
+            onClick = onClose,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Start)
+                )
+                .padding(8.dp),
+        )
     }
 }

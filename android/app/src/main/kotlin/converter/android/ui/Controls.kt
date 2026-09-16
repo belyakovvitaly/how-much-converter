@@ -11,12 +11,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
-// The two controls are drawn rather than imported. Material's extended icon set
-// is several megabytes for the sake of two glyphs, and these two are a circle
-// and a picture frame.
+// The controls are drawn rather than imported. Material's extended icon set is
+// several megabytes for the sake of a few glyphs, and these are a circle, a
+// picture frame and an arrow.
 
 /** The shutter: a white disc inside a thin ring, as every camera app has. */
 @Composable
@@ -76,5 +80,33 @@ fun GalleryButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
             lineTo(inset + side - stroke / 2, bottom)
         }
         drawPath(hill, color = Color.White, style = Stroke(width = stroke))
+    }
+}
+
+/** Back: an arrow pointing left, on a dark disc so it reads over any picture. */
+@Composable
+fun BackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Canvas(
+        modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "Back" }
+    ) {
+        drawCircle(color = Color(0x99000000))
+        val stroke = 2.5.dp.toPx()
+        val s = size.minDimension
+        val arrow = Path().apply {
+            moveTo(s * 0.52f, s * 0.3f)
+            lineTo(s * 0.32f, s * 0.5f)
+            lineTo(s * 0.52f, s * 0.7f)
+            moveTo(s * 0.33f, s * 0.5f)
+            lineTo(s * 0.7f, s * 0.5f)
+        }
+        drawPath(
+            arrow,
+            color = Color.White,
+            style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
     }
 }
