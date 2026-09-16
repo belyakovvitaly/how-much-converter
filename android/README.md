@@ -73,8 +73,11 @@ several countries share named explicitly: the euro shows the union's own flag
 rather than whichever member sorts first. It is a display choice and nothing
 reads it back.
 
-The launcher icon is two arrows passing each other, in the same green as the
-extension's, drawn as vectors rather than shipped as bitmaps.
+The launcher icon is `$?` — the app's name as a mark, and the question it
+answers — in the same green as the extension's, drawn as vector paths rather
+than shipped as bitmaps. A vector drawable has no text, so the glyphs are paths;
+they were settled in a browser first, since SVG shares this path syntax exactly
+and a reinstall a guess is a poor way to draw.
 
 ## What a frame costs, and where
 

@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Two arrows passing each other: the ordinary sign for exchange, and the one
-  thing this app does. Everything stays inside the middle 66dp, which is all an
-  adaptive icon is guaranteed to show once the launcher has masked it.
+  "$?" — the app's name as a mark, and the question it answers.
+
+  Drawn as paths because a vector drawable has no text, and previewed as SVG
+  before it was one: the two share this path syntax exactly, so the shapes were
+  settled in a browser rather than by reinstalling and squinting at a launcher.
+
+  Everything sits inside the middle 66 of the 108 canvas, which is all a
+  launcher is guaranteed to show once it has applied its own mask.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -10,29 +15,25 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Upper arrow, pointing right. -->
+    <!-- The dollar's stem, drawn first so the S sits over it. -->
     <path
-        android:pathData="M32,45 L70,45"
+        android:pathData="M37.5,26 L37.5,82"
         android:strokeColor="#FFFFFF"
         android:strokeWidth="7"
         android:strokeLineCap="round" />
     <path
-        android:pathData="M61,35 L72,45 L61,55"
+        android:pathData="M49.5,43 C49.5,36 43.5,32 37.5,32 C30.5,32 25.5,36 25.5,42 C25.5,55 49.5,52 49.5,65 C49.5,71 43.5,76 36.5,76 C29.5,76 24.5,72 24.5,65"
         android:strokeColor="#FFFFFF"
         android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
+        android:strokeLineCap="round" />
 
-    <!-- Lower arrow, pointing left. -->
+    <!-- The question mark: hook, stem, and its dot. -->
     <path
-        android:pathData="M76,63 L38,63"
+        android:pathData="M58.5,44 C58.5,36 64.5,30 71.5,30 C78.5,30 83.5,35 83.5,42 C83.5,50 75.5,53 73.5,60 L73.5,64"
         android:strokeColor="#FFFFFF"
         android:strokeWidth="7"
         android:strokeLineCap="round" />
     <path
-        android:pathData="M47,53 L36,63 L47,73"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
+        android:pathData="M73.5,73 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0"
+        android:fillColor="#FFFFFF" />
 </vector>
