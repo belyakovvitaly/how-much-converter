@@ -59,15 +59,34 @@ data class MergedText(
 ) {
     data class Part(val range: IntRange, val box: Box)
 
-    /** The smallest box covering every piece the given span touches. */
+    /**
+     * Where the given span sits: the pieces it touches, each cut down to the
+     * characters of it the span covers.
+     *
+     * A recognizer often returns a price with its neighbours in one box —
+     * "2,332 x 14000,00" on a receipt — and a label over the whole box would
+     * hide the quantity along with the price. A box says nothing about where
+     * each character is, so the cut assumes they are evenly spaced. That is
+     * exact for a receipt's fixed-width type and close enough for a tag's.
+     */
     fun boxFor(range: IntRange): Box {
         val touched = parts.filter { it.range.first <= range.last && range.first <= it.range.last }
         if (touched.isEmpty()) return box
+        val cut = touched.map { part ->
+            val length = part.range.last - part.range.first + 1
+            val from = maxOf(range.first, part.range.first) - part.range.first
+            val to = minOf(range.last, part.range.last) - part.range.first + 1
+            val width = part.box.x1 - part.box.x0
+            part.box.copy(
+                x0 = part.box.x0 + width * from / length,
+                x1 = part.box.x0 + width * to / length,
+            )
+        }
         return Box(
-            x0 = touched.minOf { it.box.x0 },
-            y0 = touched.minOf { it.box.y0 },
-            x1 = touched.maxOf { it.box.x1 },
-            y1 = touched.maxOf { it.box.y1 },
+            x0 = cut.minOf { it.x0 },
+            y0 = cut.minOf { it.y0 },
+            x1 = cut.maxOf { it.x1 },
+            y1 = cut.maxOf { it.y1 },
         )
     }
 }

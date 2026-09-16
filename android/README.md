@@ -64,6 +64,9 @@ that belongs in a test, and is where the engine's own `timings` report it. The
 two icons are drawn rather than imported: Material's extended set is several
 megabytes for the sake of a circle and a picture frame.
 
+The version sits in the top corner in small grey type, so a report from a shop
+can say which build it was about.
+
 The engine says when it is not ready yet, and the panel says "Starting…" rather
 than reporting no price in view about a price plainly in view.
 
@@ -287,6 +290,11 @@ without a camera:
   span of the joined text came from which line, so two prices on one line get
   their own boxes rather than a shared one, and a price split across boxes gets
   both.
+- A label covers the price and not the rest of its line. A recognizer often
+  returns a price with its neighbours in one box — `2,332 x 14000,00` on a
+  receipt — so the box is cut down to the characters the price occupies,
+  assuming they are evenly spaced: exact for a receipt's fixed-width type,
+  close enough for a tag's.
 - `Viewport` maps image pixels onto the view showing them. The preview is set to
   fit rather than fill: filling crops the frame, and a price the camera read in
   the cropped part would be converted and then drawn off-screen.

@@ -78,6 +78,23 @@ class LocatePricesTest {
     }
 
     @Test
+    fun `a label covers the price, not the rest of its line`() {
+        // Sixteen characters over 160 pixels, ten apiece; the price is the last
+        // eight of them.
+        val found = locatePrices(
+            listOf(line("2,332 x 14000,00", 0.0, 160.0)),
+            PriceContext(bareAmounts = "ARS"),
+        )
+        assertEquals(Box(80.0, 0.0, 160.0, 40.0), found.single().box)
+    }
+
+    @Test
+    fun `a price with words around it is cut out of them`() {
+        val found = locatePrices(listOf(line("Цена 99 USD сейчас", 0.0, 180.0)))
+        assertEquals(Box(50.0, 0.0, 110.0, 40.0), found.single().box)
+    }
+
+    @Test
     fun `prices on different rows keep their own vertical positions`() {
         val found = locatePrices(
             listOf(

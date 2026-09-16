@@ -139,7 +139,30 @@ fun CameraScreen(
                 modifier = Modifier.align(Alignment.Center),
             )
         }
+
+        VersionLabel(Modifier.align(Alignment.TopEnd))
     }
+}
+
+/**
+ * Which build this is, small and out of the way, so a report from a shop can
+ * say which version it was about.
+ */
+@Composable
+private fun VersionLabel(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val version = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull()
+    } ?: return
+    Text(
+        text = "v$version",
+        color = Color.White.copy(alpha = 0.5f),
+        style = MaterialTheme.typography.labelSmall,
+        modifier = modifier
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
 }
 
 @Composable
