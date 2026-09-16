@@ -1,0 +1,8 @@
+# Gradle
+.gradle/
+build/
+local.properties
+.kotlin/
+
+# OCR model assets: build outputs of tools/export-ocr-models.py
+app/src/main/assets/

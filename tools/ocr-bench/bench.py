@@ -44,11 +44,30 @@ def load_symbol_table():
     if not symbols:
         sys.exit("SYMBOL_TO_CODE parsed empty")
 
-    number = re.search(r"const NUMBER = String\.raw`(.*?)`;", src, re.S)
-    if not number:
+    # NUMBER is assembled from other raw templates (${MINOR}), so every raw
+    # template is collected and the references resolved. Substituting one
+    # literally leaves "${MINOR}" in the pattern, where Python reads "$" as an
+    # end anchor and quietly stops matching minor units — invisibly, because the
+    # truth strings are parsed with the same expression and degrade along with it.
+    raws = dict(re.findall(r"const (\w+) = String\.raw`(.*?)`;", src, re.S))
+    if "NUMBER" not in raws:
         sys.exit(f"cannot find NUMBER in {CURRENCY_JS}")
 
-    return symbols, number.group(1)
+    def resolve(name, seen=()):
+        if name in seen:
+            sys.exit(f"circular String.raw reference at {name}")
+        out = raws[name]
+        for ref in set(re.findall(r"\$\{(\w+)\}", out)):
+            if ref not in raws:
+                sys.exit(f"{name} references ${{{ref}}}, not a String.raw const")
+            out = out.replace("${" + ref + "}", resolve(ref, seen + (name,)))
+        return out
+
+    number = resolve("NUMBER")
+    if "${" in number:
+        sys.exit(f"unresolved interpolation in NUMBER: {number}")
+
+    return symbols, number
 
 
 SYMBOL_TO_CODE, NUMBER = load_symbol_table()
@@ -63,7 +82,9 @@ def parse_amount(raw):
     Kept in sync by PARSE_CHECKS below rather than by hope — run this file and
     a drifted port fails loudly before any score is printed.
     """
+    # The dash standing in for the minor unit carries no value: "1.449,–" is 1449.
     s = re.sub(r"[  \s'’]", "", str(raw))
+    s = re.sub(r"[.,][\u2013-]$", "", s)
     has_comma, has_dot = "," in s, "." in s
 
     if has_comma and has_dot:
@@ -92,6 +113,7 @@ PARSE_CHECKS = [
     ("1 234,56", 1234.56), ("1,234.56", 1234.56), ("1.234.567", 1234567.0),
     ("12,34", 12.34), ("1,234", 1234.0), ("1'234.50", 1234.50),
     ("1’234’567", 1234567.0), ("1234", 1234.0), ("89,00", 89.0),
+    ("1.449,\u2013", 1449.0), ("1.449,-", 1449.0), ("12,50", 12.5),
 ]
 
 # What a recognizer emits instead of the real glyph. These are OCR artifacts,
