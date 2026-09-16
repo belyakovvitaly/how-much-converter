@@ -266,6 +266,32 @@ const LANG_TO_CURRENCY = {
   uk: "UAH", vi: "VND",
 };
 
+// Which country's flag stands beside a currency in the popup's lists. Display
+// only: it says what to draw next to a code, never what a page is priced in.
+// Most follow from COUNTRY_TO_CURRENCY; these are the ones several countries
+// share, where the flag should be the issuer's rather than whichever member
+// sorts first. The Android picker uses the same rule (tools/gen-currency-kt.py).
+const FLAG_OVERRIDES = {
+  EUR: "eu", // the union's own flag, rather than picking a member
+  USD: "us", // also spent in Ecuador
+  GBP: "gb",
+  CHF: "ch", // also Liechtenstein
+  BGN: "bg", // Bulgaria prices in euro now; the lev is kept for old pages
+};
+
+// The flag as an emoji: two regional indicator letters, which the system draws
+// as a flag. Nothing to bundle. "" when a currency has no country to show.
+function flagFor(code) {
+  const country =
+    FLAG_OVERRIDES[code] ??
+    Object.keys(COUNTRY_TO_CURRENCY)
+      .filter((cc) => COUNTRY_TO_CURRENCY[cc] === code)
+      .sort()[0];
+  if (!country || !/^[a-z]{2}$/.test(country)) return "";
+  const base = 0x1f1e6 - "a".charCodeAt(0);
+  return String.fromCodePoint(base + country.charCodeAt(0), base + country.charCodeAt(1));
+}
+
 // The last label of a hostname: "falabella.com.pe" -> PEN, "takealot.com" -> null.
 function currencyFromHostname(hostname) {
   const tld = String(hostname || "").toLowerCase().split(".").pop();
@@ -648,6 +674,7 @@ if (typeof self !== "undefined") {
     formatConverted,
     currencyFromHostname,
     currencyFromLang,
+    flagFor,
     currencyFromMarkup,
     detectPageCurrency,
     collapsePriceText,

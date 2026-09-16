@@ -15,7 +15,8 @@
 }
 
 body {
-  width: 300px;
+  /* Wide enough for a flag, a code and the usual currency name. */
+  width: 340px;
   margin: 0;
   padding: 14px;
   font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -49,7 +50,7 @@ select {
      pushing the popup wider. */
   flex: 1 1 auto;
   min-width: 0;
-  max-width: 62%;
+  max-width: 66%;
   padding: 3px 6px;
   border: 1px solid var(--border);
   border-radius: 5px;

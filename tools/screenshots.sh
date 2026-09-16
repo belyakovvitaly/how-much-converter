@@ -43,7 +43,7 @@ inline = demo.replace("  </body>", f'''    {stub}
   </body>''')
 (tmp / "inline.html").write_text(inline, encoding="utf-8")
 (tmp / "popup.html").write_text(inline.replace("  </body>", '''    <style>
-      #shot-popup { position: fixed; top: 14px; right: 22px; width: 330px; height: 243px;
+      #shot-popup { position: fixed; top: 14px; right: 22px; width: 368px; height: 243px;
         border: 0; border-radius: 12px; background: #fff; z-index: 9999;
         box-shadow: 0 12px 34px rgba(12,22,38,.28), 0 2px 6px rgba(12,22,38,.12); }
     </style>
@@ -54,7 +54,9 @@ inline = demo.replace("  </body>", f'''    {stub}
       const frame = document.getElementById("shot-popup");
       const fit = () => {
         const doc = frame.contentDocument;
-        if (doc) frame.style.height = doc.documentElement.scrollHeight + "px";
+        if (!doc) return;
+        frame.style.width = doc.documentElement.scrollWidth + "px";
+        frame.style.height = doc.documentElement.scrollHeight + "px";
       };
       frame.addEventListener("load", () => { fit(); setTimeout(fit, 400); });
     </script>

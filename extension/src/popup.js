@@ -5,7 +5,7 @@
 // this page's global scope — a top-level `const CURRENCIES` here would collide
 // with the one it declares and stop this whole file from parsing.
 (function () {
-  const { CURRENCY_NAMES, CURRENCIES, DOLLAR_CURRENCIES } = self.HMC;
+  const { CURRENCY_NAMES, CURRENCIES, DOLLAR_CURRENCIES, flagFor } = self.HMC;
 
   const els = {
     enabled: document.getElementById("enabled"),
@@ -27,10 +27,33 @@
   const VERSION = chrome.runtime.getManifest().version;
   els.version.textContent = `v${VERSION}`;
 
+  // Windows ships no flag glyphs: a flag emoji there comes out as its two
+  // letters, and a row would read "US USD — US dollar". A flag is drawn in
+  // colour and the fallback letters are not, so draw one and look.
+  const FLAGS_DRAWN = (() => {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 24;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.font = "20px sans-serif";
+      ctx.textBaseline = "top";
+      ctx.fillText(flagFor("EUR"), 0, 0);
+      const { data } = ctx.getImageData(0, 0, 24, 24);
+      for (let i = 0; i < data.length; i += 4) {
+        const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]];
+        if (a > 0 && (Math.abs(r - g) > 40 || Math.abs(g - b) > 40)) return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  })();
+
   function option(code) {
     const opt = document.createElement("option");
     opt.value = code;
-    opt.textContent = `${code} — ${CURRENCY_NAMES[code] || code}`;
+    const flag = FLAGS_DRAWN ? flagFor(code) : "";
+    opt.textContent = `${flag ? `${flag} ` : ""}${code} — ${CURRENCY_NAMES[code] || code}`;
     return opt;
   }
 

@@ -101,6 +101,21 @@
         check('"$" offers detection', $("dollarAssumption").options[0].value, "auto");
         check("the report button is the new one", $("report").textContent.trim(), "It didn't work here");
 
+        // Flags. The table is checked on its own, whatever the system can draw;
+        // the rows are checked only where flags are drawn (not on Windows).
+        const H = self.HMC;
+        const noFlag = H.CURRENCIES.filter((code) => !H.flagFor(code));
+        check("every currency has a flag", noFlag.join(", ") || "all", "all");
+        check("the euro shows the union's flag", H.flagFor("EUR"), "🇪🇺");
+        check("the dollar shows the United States, not Ecuador", H.flagFor("USD"), "🇺🇸");
+        check("the lev keeps Bulgaria's flag", H.flagFor("BGN"), "🇧🇬");
+        check("the boliviano shows Bolivia", H.flagFor("BOB"), "🇧🇴");
+        check("the franc shows Switzerland, not Liechtenstein", H.flagFor("CHF"), "🇨🇭");
+        const euroRow = [...$("targetCurrency").options].find((o) => o.value === "EUR");
+        check("a row carries its flag", euroRow && euroRow.textContent, "🇪🇺 EUR — Euro");
+        const pesoRow = [...$("dollarAssumption").options].find((o) => o.value === "ARS");
+        check('the "$" list has flags too', pesoRow && pesoRow.textContent, "🇦🇷 ARS — Argentine peso");
+
         $("report").click();
         await new Promise((r) => setTimeout(r, 100));
 
