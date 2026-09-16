@@ -96,10 +96,16 @@ left to right; sorting by y first lets a right-hand fragment open the group and
 strand the digits to its left, which turned `1 299` into `299`.
 
 **The one dangerous failure class.** A prefix symbol can be read as a digit and
-fuse with the number: `₴1 200,50` comes back as `21 200,50`. Today that is
-harmless — the currency fails to match, so nothing is shown — but it is the one
-shape that can yield a plausible wrong amount. Whatever ships should treat a
-prefix glyph touching a number as suspect.
+fuse with the number: `₴1 200,50` comes back as `21 200,50`. On this corpus that
+looked harmless — the currency failed to match, so nothing was shown — and the
+note here used to say so. `probes/prefix.py` was written to check, and found the
+shape that is not harmless: with a suffix token still on the line,
+`₴1 200,50 грн` reads as a confident `21 200,50 UAH`, seventeen times too large.
+
+No rule about content can catch it, since `21 200,50 грн` is an ordinary price.
+The app's answer is geometric — crops carry side margin, which turns the failure
+into a safe one — and `SIDE_MARGIN` in the prototype is where another margin can
+be measured.
 
 Tesseract is the weakest and the only engine that produced a confidently wrong
 price: on the angled shot it read `799 руб.` as `199 руб.`
@@ -109,6 +115,41 @@ of them Cyrillic. Vision's `--fast` level stands in for it: it is a Latin-first
 recognizer, and it fails the same way, transliterating Cyrillic into Latin
 lookalikes (`руб.` → `py6.`, `грн` → `rpH`) while corrupting digits (`180 ₽` →
 `18oP`, `3 490 ₽` → `34902`).
+
+## Trying a change before writing it in Kotlin
+
+[`prototype/pipeline.py`](prototype/pipeline.py) is the phone's pipeline on a
+desktop: the same models the app ships, the same thresholds, the same
+post-processing, in a form where trying something costs seconds instead of a
+build and an install. Two of the app's fixes were found there and would have
+been expensive to find in Kotlin — feeding the recognizer its nominal 320-pixel
+width squashes a long line until it stops being readable, and a currency glyph
+at the very edge of a crop is read as a digit and fuses into the number.
+
+Because the models are committed, it needs nothing else:
+
+```sh
+pip install onnxruntime numpy
+./prototype/pipeline.py          # writes out/onnx-prototype.json
+./bench.py out/onnx-prototype.json
+SIDE_MARGIN=0.6 ./prototype/pipeline.py    # what another crop margin would cost
+./prototype/measure.py           # where a frame's time goes, by stage
+```
+
+## Probes
+
+The corpus answers "how good is this engine". A probe answers one narrow
+question, and each of these was written because a real shop raised one:
+
+| Probe | The question it was written for |
+| --- | --- |
+| [`probes/angled.py`](probes/angled.py) | A tag seen from the side. It read 1648 for 3648,75 before boxes were fitted to the text's own angle. |
+| [`probes/shelf.py`](probes/shelf.py) | Several tags at once, surrounded by fine print. This is what showed reading, not detection, was the cost. |
+| [`probes/prefix.py`](probes/prefix.py) | A currency glyph written before the digits, across `₴ ₹ ¥ ₩ $ € £`. |
+
+They render into `android/app/src/androidTest/assets/regression`, which is where
+the device tests read them, so changing a case changes what is actually checked.
+They need Chrome, and they regenerate the committed fixtures byte for byte.
 
 ## Keeping it honest
 

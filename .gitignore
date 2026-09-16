@@ -17,3 +17,9 @@ tools/ocr-bench/html/
 tools/ocr-bench/out/
 tools/ocr-bench/.build/
 tools/ocr-bench/.chrome-*/
+
+# OCR probe scratch: rendered pages and throwaway Chrome profiles
+tools/ocr-bench/probes/.html/
+tools/ocr-bench/probes/.chrome-*/
+tools/ocr-bench/prototype/__pycache__/
+tools/ocr-bench/probes/.out/
