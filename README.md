@@ -47,8 +47,9 @@ kept in one repository rather than three.
 ## The Android app
 
 Point it at a price and the converted amount is drawn over the price itself, the
-way a live translation is. It reads a photograph too, taken or chosen from the
-gallery.
+way a live translation is. It reads a photograph too — taken, chosen from the
+gallery, or shared to it from any other app — and has a receipt mode for the
+amounts a shop prints without a currency.
 
 Two currencies, and they are not the same question: what the prices are in is
 detected from the country the phone is standing in, and what to convert into

@@ -227,6 +227,14 @@ needs Android 14 with SDK extension 15; without it, the button opens the
 standalone picker as before, and so does a session that fails to start. The
 library, `androidx.photopicker`, is still an alpha.
 
+**Share** works from the other side: the app is listed when any app shares a
+picture, and the picture opens as if it had been picked. It can arrive before
+the models have loaded — a share starts the app cold — so a still waits for
+the recognizer rather than reading with the placeholder and reporting no price
+in a picture full of them. The same wait covers a photo taken in the first
+second. Back from the picture goes to the camera, and back again to the app
+that shared it.
+
 Two things a still needs that a frame does not:
 
 - **EXIF orientation.** A camera writes the picture in the sensor's frame and

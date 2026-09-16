@@ -1,5 +1,6 @@
 package converter.android
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
@@ -19,6 +20,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.core.content.IntentCompat
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import converter.android.ocr.OcrEngine
@@ -44,14 +48,25 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
+    /**
+     * A picture another app shared with this one, waiting to be opened.
+     *
+     * Only taken from the intent that started the activity, not from a saved
+     * state, so coming back to the app does not open the same picture again.
+     */
+    private var shared by mutableStateOf<Uri?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) shared = sharedImage(intent)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(color = Color.Black) {
                     val context = LocalContext.current
                     var engine by remember { mutableStateOf<OcrEngine>(UnwiredEngine) }
+                    // Whether loading the models has finished, either way.
+                    var engineSettled by remember { mutableStateOf(false) }
                     var rates by remember { mutableStateOf<RateTable?>(null) }
                     val currencies = remember { CurrencyStore(context) }
                     val detectedLocal = remember { currencies.detectLocal() }
@@ -79,6 +94,7 @@ class MainActivity : ComponentActivity() {
                                 .onFailure { Log.e(TAG, "could not load the OCR models", it) }
                                 .getOrDefault(UnwiredEngine)
                         }
+                        engineSettled = true
                     }
 
                     // Rates load in parallel. Prices are shown as read until
@@ -105,6 +121,15 @@ class MainActivity : ComponentActivity() {
                         }
                         still = Still.Working(image)
                         scope.launch {
+                            // A picture can arrive before the models have
+                            // loaded — shared from another app, most often.
+                            // Reading it with the placeholder would report no
+                            // price in a picture full of them.
+                            snapshotFlow { engineSettled }.first { it }
+                            if (!engine.ready) {
+                                still = Still.Failed("The recognizer could not be loaded")
+                                return@launch
+                            }
                             val lines = withContext(Dispatchers.Default) {
                                 val current = engine
                                 current.reset()
@@ -135,6 +160,16 @@ class MainActivity : ComponentActivity() {
                     fun pickStandalone() = fromGallery.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
+
+                    // A picture shared from another app opens as if it had
+                    // been picked from the gallery.
+                    LaunchedEffect(shared) {
+                        shared?.let { uri ->
+                            shared = null
+                            browsing = false
+                            open(uri)
+                        }
+                    }
 
                     CameraScreen(
                         engine = engine,
@@ -231,6 +266,18 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        sharedImage(intent)?.let { shared = it }
+    }
+
+    /** The image in a share, if this intent is one. */
+    private fun sharedImage(intent: Intent?): Uri? {
+        if (intent?.action != Intent.ACTION_SEND) return null
+        if (intent.type?.startsWith("image/") != true) return null
+        return IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
     }
 
     /** Which of the two currencies the picker is open for. */
