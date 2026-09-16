@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +43,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -60,7 +62,6 @@ import converter.core.formatConverted
 import converter.core.locatePrices
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.atomic.AtomicLong
 
 /** What the frames so far agree on. */
 data class FrameState(
@@ -71,10 +72,6 @@ data class FrameState(
     val imageHeight: Int = 0,
     /** How many readings the last frame produced, confirmed or not. */
     val readLastFrame: Int = 0,
-    /** How many of the last frame's lines were carried rather than read. */
-    val reusedLastFrame: Int = 0,
-    val framesSeen: Long = 0,
-    val lastMillis: Long = 0,
 )
 
 /**
@@ -171,7 +168,6 @@ private fun CameraPreview(
     // the camera wobbles.
     val positions = remember { AtomicReference(emptyMap<Price, converter.core.Box>()) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
-    val seen = remember { AtomicLong(0) }
 
     androidx.compose.ui.viewinterop.AndroidView(
         modifier = Modifier.fillMaxSize(),
@@ -210,7 +206,6 @@ private fun CameraPreview(
                     .build()
 
                 analysis.setAnalyzer(analysisExecutor) { image ->
-                    val started = System.currentTimeMillis()
                     try {
                         val frame = image.toBitmap().upright(image.imageInfo.rotationDegrees)
                         val lines = currentEngine.value.recognize(frame)
@@ -242,9 +237,6 @@ private fun CameraPreview(
                                 imageWidth = frame.width,
                                 imageHeight = frame.height,
                                 readLastFrame = prices.size,
-                                reusedLastFrame = lines.count { it.reused },
-                                framesSeen = seen.incrementAndGet(),
-                                lastMillis = System.currentTimeMillis() - started,
                             )
                         )
                     } finally {
@@ -286,85 +278,118 @@ private fun ReadingPanel(
             // The window is edge to edge, so the panel has to clear the gesture
             // bar itself; the background stays behind it, the text does not.
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        when {
-            frame.prices.isEmpty() -> Text(
-                text = if (frame.readLastFrame > 0) "Reading\u2026" else "No price in view",
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-            )
+        Status(frame = frame, rates = rates, engine = engine)
+        CurrencyBar(
+            source = source,
+            target = target,
+            onChangeSource = onChangeSource,
+            onChangeTarget = onChangeTarget,
+        )
+        Box(Modifier.fillMaxWidth()) {
+            GalleryButton(onPickFromGallery, Modifier.align(Alignment.CenterStart))
+            ShutterButton(onPhoto, Modifier.align(Alignment.Center))
+        }
+    }
+}
 
-            // With rates, the conversions are drawn over the prices themselves;
-            // repeating them here would say the same thing twice.
-            rates != null -> Text(
-                text = if (frame.prices.size == 1) "1 price converted"
-                       else "${frame.prices.size} prices converted",
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-            )
+/**
+ * What the app is converting, and into what.
+ *
+ * The two currencies are the only settings there are, and the arrow between
+ * them says which way round they go — which is the thing that has to be obvious
+ * at a glance, since reading it backwards converts the local currency into
+ * itself.
+ */
+@Composable
+private fun CurrencyBar(
+    source: String?,
+    target: String,
+    onChangeSource: () -> Unit,
+    onChangeTarget: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CurrencyButton(source ?: "?", onChangeSource)
+        Text(
+            text = "\u2192",
+            color = Color(0xFF9E9E9E),
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        CurrencyButton(target, onChangeTarget)
+    }
+}
 
-            // Without rates there is nothing to draw, so the panel is the only
-            // place the reading can appear at all.
-            else -> {
-                for (located in frame.prices) {
-                    Text(
-                        text = formatConverted(located.price.amount, located.price.code),
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
+@Composable
+private fun CurrencyButton(code: String, onClick: () -> Unit) {
+    Text(
+        text = code,
+        color = Color.White,
+        style = MaterialTheme.typography.headlineSmall,
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+    )
+}
+
+/** One quiet line: what came of the last look, and nothing about the machinery. */
+@Composable
+private fun Status(frame: FrameState, rates: RateTable?, engine: OcrEngine) {
+    when {
+        // Until the models are in memory there is no engine, and reporting "no
+        // price in view" about a price plainly in view would be a small lie.
+        !engine.ready -> Text(
+            text = "Starting\u2026",
+            color = Color(0xFFBDBDBD),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+
+        frame.prices.isEmpty() -> Text(
+            text = if (frame.readLastFrame > 0) "Reading\u2026" else "No price in view",
+            color = Color(0xFFBDBDBD),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+
+        // With rates, the conversions are drawn over the prices themselves;
+        // repeating them here would say the same thing twice.
+        rates != null -> Text(
+            text = if (frame.prices.size == 1) "1 price converted"
+                   else "${frame.prices.size} prices converted",
+            color = Color(0xFFBDBDBD),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+
+        // Without rates there is nothing to draw, so this is the only place the
+        // reading can appear at all.
+        else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            for (located in frame.prices) {
                 Text(
-                    text = "No rates yet — showing what was read",
-                    color = Color(0xFFFFB74D),
-                    style = MaterialTheme.typography.bodySmall,
+                    text = formatConverted(located.price.amount, located.price.code),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
                 )
             }
-        }
-        Row {
-            Setting(label = "Photo", onClick = onPhoto)
-            Text("   ", style = MaterialTheme.typography.bodyMedium)
-            Setting(label = "Gallery", onClick = onPickFromGallery)
-        }
-        Row {
-            Setting(
-                label = "from ${source ?: "?"}",
-                onClick = onChangeSource,
-            )
-            Text("   ", style = MaterialTheme.typography.bodyMedium)
-            Setting(label = "into $target", onClick = onChangeTarget)
-        }
-        Text(
-            text = "${engine.name} · frames: ${frame.framesSeen} · ${frame.lastMillis} ms" +
-                if (frame.reusedLastFrame > 0) " · ${frame.reusedLastFrame} reused" else "",
-            color = Color(0xFF7A7A7A),
-            style = MaterialTheme.typography.bodySmall,
-        )
-        if (!engine.readsCyrillic) {
             Text(
-                // Not a disclaimer for its own sake: a Latin-only recognizer
-                // corrupts Cyrillic prices rather than missing them.
-                text = "This engine cannot read Cyrillic prices",
+                text = "No rates yet — showing what was read",
                 color = Color(0xFFFFB74D),
                 style = MaterialTheme.typography.bodySmall,
             )
         }
     }
-}
 
-/** A tappable currency in the panel. Underlined, so it reads as a control. */
-@Composable
-private fun Setting(label: String, onClick: () -> Unit) {
-    Text(
-        text = label,
-        color = Color(0xFFCFCFCF),
-        style = MaterialTheme.typography.bodyMedium,
-        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
-    )
+    if (engine.ready && !engine.readsCyrillic) {
+        Text(
+            // Not a disclaimer for its own sake: a Latin-only recognizer
+            // corrupts Cyrillic prices rather than missing them.
+            text = "This engine cannot read Cyrillic prices",
+            color = Color(0xFFFFB74D),
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }
 
 @Composable

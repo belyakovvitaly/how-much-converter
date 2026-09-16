@@ -20,6 +20,15 @@ interface OcrEngine {
     val name: String
 
     /**
+     * Whether this engine can actually read anything yet.
+     *
+     * The models take a second or two to load, and until they have, the app is
+     * holding a placeholder. Saying so is better than reporting "no price in
+     * view" about a price that is plainly in view.
+     */
+    val ready: Boolean get() = true
+
+    /**
      * Whether this engine has a Cyrillic model. A Latin-only recognizer does
      * not merely miss Cyrillic prices, it corrupts them — `180 ₽` comes back as
      * `18oP` — so the UI has to be able to say when it cannot be trusted with
@@ -57,6 +66,7 @@ interface OcrEngine {
  */
 object UnwiredEngine : OcrEngine {
     override val name = "none yet"
+    override val ready = false
     override val readsCyrillic = false
     override fun recognize(frame: Bitmap, thorough: Boolean): List<OcrLine> = emptyList()
 }

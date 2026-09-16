@@ -53,10 +53,17 @@ an Apple Silicon Mac. An Intel-host emulator would need `x86_64` adding back in
 
 Camera preview, frames analysed one at a time on a background thread with only
 the newest kept, each one passed through [`OcrEngine`](app/src/main/kotlin/converter/android/ocr/OcrEngine.kt)
-and then through `:core`, with whatever prices come out listed under the
-viewfinder. The UI names the running engine and warns when that engine cannot
-read Cyrillic, because a Latin-only recognizer corrupts those prices instead of
-missing them.
+and then through `:core`, with the conversions drawn over the prices themselves.
+
+Under the viewfinder: one line saying what came of the last look, the two
+currencies as `ARS → USD` with each side opening a picker, and a shutter and a
+gallery button. Nothing about frames, milliseconds or which engine is running —
+that belongs in a test, and is where the engine's own `timings` report it. The
+two icons are drawn rather than imported: Material's extended set is several
+megabytes for the sake of a circle and a picture frame.
+
+The engine says when it is not ready yet, and the panel says "Starting…" rather
+than reporting no price in view about a price plainly in view.
 
 ## What a frame costs, and where
 
