@@ -25,9 +25,31 @@ class PrefixLookTest {
     @Test
     fun `the chalked sign gets its dollar back`() {
         // What the phone read, and what a crop with room to the left read.
-        assertEquals("$ 5600×Kg", withPrefixFrom("5600×Kg", "$5600Kg"))
-        assertEquals("$ 5600×Kg", withPrefixFrom("5600×Kg", "$ 5600 Kg"))
-        assertEquals("€ 12,50", withPrefixFrom("12,50", "€12,50"))
+        assertEquals("$5600×Kg", withPrefixFrom("5600×Kg", "$5600Kg"))
+        assertEquals("$5600×Kg", withPrefixFrom("5600×Kg", "$ 5600 Kg"))
+        assertEquals("€12,50", withPrefixFrom("12,50", "€12,50"))
+    }
+
+    @Test
+    fun `the symbol is written touching the number, so nothing before claims it`() {
+        // The scrap the symbol was detected as, read as a digit, beside the
+        // line with the symbol restored: one price, not two.
+        val prices = locatePrices(
+            listOf(
+                OcrLine("8", box = Box(270.0, 700.0, 297.0, 735.0)),
+                OcrLine(withPrefixFrom("5600×Kg", "$5600Kg")!!, box = Box(250.0, 685.0, 503.0, 785.0)),
+            ),
+            PriceContext(pageCurrency = "ARS"),
+        ).map { it.price }
+        assertEquals(listOf(Price(5600.0, "ARS")), prices)
+    }
+
+    @Test
+    fun `a scrap a glyph wide is taken for a glyph, a word is not`() {
+        assertEquals(true, looksLikeLoneGlyph(OcrLine("8", box = Box(0.0, 0.0, 23.0, 32.0))))
+        assertEquals(true, looksLikeLoneGlyph(OcrLine("69", box = Box(0.0, 0.0, 46.0, 60.0))))
+        assertEquals(false, looksLikeLoneGlyph(OcrLine("30", box = Box(0.0, 0.0, 120.0, 32.0))))
+        assertEquals(false, looksLikeLoneGlyph(OcrLine("OFF", box = Box(0.0, 0.0, 30.0, 32.0))))
     }
 
     @Test

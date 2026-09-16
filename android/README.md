@@ -150,29 +150,44 @@ case that used to fail.
 ## The symbol the detector missed
 
 A symbol written apart from its digits — a chalked `$ 5600 x Kg` on a street
-sign — is thin and sparse, and the detector finds it only as a scrap the
-recognizer cannot read. The number is read, the symbol is not, and a bare
-number is rightly left alone: the sign showed six printed prices converted and
-the chalked one not.
+sign — is thin and sparse, and the detector finds it only as a scrap: one the
+recognizer cannot read at all, or reads as a digit or two (`8`, `69`, `89` at
+different sizes of the same photo). The number is read, the symbol is not, and
+a bare number is rightly left alone.
 
 So a line that starts with a bare number gets a second look, with a line's
-height of room before it, once everything else in the frame has been read —
-and only if nothing else that was read lies there, since reading across a
-neighbour could only confuse the two. The symbol reads in some crops and not
-others, so a few are tried, turned to the line's angle and square to the frame,
-at full height and trimmed toward the digits' band: the box is as tall as the
-"Kg" hanging below them.
+height of room before it, once everything else in the frame has been read. Text
+read there stands in the way — reading across a neighbour could only confuse
+the two — unless it is a lone glyph, one or two characters in a box about as
+wide as it is tall, which just before a bare number is likelier the symbol
+itself. If the look finds a symbol, that scrap's reading is dropped.
+
+The symbol reads in some crops and not others, so a few are tried: square to
+the frame first, then turned to the line's angle, at full height and trimmed
+toward the digits' band. A hand-written line's angle is fitted to all of it —
+the "x Kg" slopes down and made this one ten degrees — and turning by it leans
+the symbol out of shape; the box is as tall as the "Kg" hanging below.
 
 Whatever is tried, only a symbol can come of it.
 [`withPrefixFrom`](core/src/main/kotlin/converter/core/PrefixLook.kt) takes a
 known currency symbol — one with a mark that is not a letter — and only when it
 stands directly before the very number the first reading had; the digits are
-always the first reading's. A symbol misread as a digit and fused into the
-number changes that number, and is refused. A live frame takes at most four
-second looks, and the shelf's first frame went from 266 ms to 283.
+always the first reading's, so a symbol misread as a digit changes the number
+and is refused. The symbol is written touching the number, `$5600×Kg`: with a
+space, a scrap read as `8` beside it would make `8 $ 5600` a price of eight.
 
-`SignPhotoTest` holds the engine to the sign, as a messenger delivered it: all
-seven prices, the chalked one included.
+A live frame takes at most four second looks of three crops each; the shelf's
+first frame went from 266 ms to about 290.
+
+The first version of this passed its test and failed on a phone. The test had
+the photo at the size a messenger delivered it, where the scrap happened to read
+as nothing; at the size a phone's own photo is read at, it read as a digit and
+blocked the look. `SignPhotoTest` now reads the sign at several sizes. At the
+original size it holds all seven prices; enlarged, only the chalked one —
+because at 1.5625 times the recognizer reads the printed `$16.800` as
+`$16.00`, a wrong price that has nothing to do with the chalk, and was there
+before. An enlarged messenger JPEG is not a sharp photo, so how often that
+happens with a real one is not known yet.
 
 ## Box tracking
 

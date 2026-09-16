@@ -18,6 +18,7 @@ import converter.core.detectBoxes
 import converter.core.extendedBack
 import converter.core.intersects
 import converter.core.leadingBareNumber
+import converter.core.looksLikeLoneGlyph
 import converter.core.withPrefixFrom
 import converter.core.reuseFor
 import converter.core.scaleTo
@@ -182,9 +183,12 @@ class PaddleOnnxEngine private constructor(
 
         // A number with nothing to say its currency may have a symbol just
         // before it that the detector found only as a scrap the recognizer
-        // could not read. Looked for once everything else has been read, so
-        // that only text actually read counts as being in the way: reading
-        // across a neighbour could only confuse the two. See PrefixLook.kt.
+        // could not read, or misread as a digit or two. Looked for once
+        // everything else has been read, so that only text actually read counts
+        // as being in the way — reading across a neighbour could only confuse
+        // the two — unless it is a lone glyph, which is likely the very symbol.
+        // See PrefixLook.kt.
+        val absorbed = mutableSetOf<Int>()
         for (candidate in fresh) {
             if (!thorough && looked >= MAX_PREFIX_LOOKS) break
             val line = lines[candidate.line]
@@ -194,13 +198,17 @@ class PaddleOnnxEngine private constructor(
             val wider = candidate.tilted.extendedBack(candidate.tilted.height * PREFIX_LOOK)
             val inset = box.height * 0.2
             val before = Box(wider.bounds.x0, box.y0 + inset, box.x0, box.y1 - inset)
-            val crowded = lines.any { other -> other !== line && other.box?.intersects(before) == true }
-            if (crowded) continue
+            val inTheWay = lines.indices.filter { i ->
+                i != candidate.line && lines[i].box?.intersects(before) == true
+            }
+            if (inTheWay.any { !looksLikeLoneGlyph(lines[it]) }) continue
 
             looked++
             // The symbol reads only in some crops and not others, so a few are
-            // tried: turned to the line's angle, as it was read, and square to
-            // the frame, each at full height and trimmed towards the middle.
+            // tried: square to the frame first, then turned to the line's angle,
+            // each at full height and trimmed towards the middle. A hand-written
+            // line's angle is fitted to all of it, tail included, and turning
+            // by it leans the symbol out of shape.
             // A line's box is as tall as its tallest part, and on a chalked
             // sign that is the "Kg" hanging below the digits, not the digits;
             // trimmed nearer their band, "$" reads where it did not. Whatever
@@ -214,8 +222,8 @@ class PaddleOnnxEngine private constructor(
                 angle = 0.0,
             )
             val tries = PREFIX_TRIMS.flatMap { trim ->
-                listOf(wider, upright).map { it.copy(height = it.height * (1 - 2 * trim)) }
-            }.let { if (thorough) it else it.take(2) }
+                listOf(upright, wider).map { it.copy(height = it.height * (1 - 2 * trim)) }
+            }.let { if (thorough) it else it.take(LIVE_PREFIX_TRIES) }
             val text = tries.firstNotNullOfOrNull { region ->
                 val widerCrop = crop(frame, region) ?: return@firstNotNullOfOrNull null
                 val again = read(widerCrop)
@@ -226,6 +234,13 @@ class PaddleOnnxEngine private constructor(
             // taller than the line and would put the label over the line above.
             lines[candidate.line] = line.copy(text = text, box = box.copy(x0 = minOf(box.x0, bounds.x0)))
             carried[candidate.carried] = carried[candidate.carried].copy(text = text)
+            // The scrap was the symbol; its own reading is not a line of text.
+            absorbed += inTheWay
+        }
+        if (absorbed.isNotEmpty()) {
+            val dropped = absorbed.mapNotNull { lines[it].box }.toSet()
+            lines.removeAll { it.box in dropped }
+            carried.removeAll { it.box in dropped }
         }
 
         tracker = TrackerState(carried)
@@ -397,6 +412,9 @@ class PaddleOnnxEngine private constructor(
 
         /** How much of a line's height each second look trims from top and bottom. */
         private val PREFIX_TRIMS = listOf(0.0, 0.15, 0.25)
+
+        /** Crops tried per second look in a live frame; a still tries them all. */
+        private const val LIVE_PREFIX_TRIES = 3
 
         /** Second looks per live frame; a still takes as many as it needs. */
         private const val MAX_PREFIX_LOOKS = 4

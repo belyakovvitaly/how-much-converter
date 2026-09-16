@@ -43,7 +43,20 @@ fun withPrefixFrom(first: String, second: String): String? {
     if (symbol !in PREFIX_SYMBOLS) return null
     val again = LEADING_NUMBER.find(match.groupValues[2])?.value ?: return null
     if (again.filterNot(Char::isWhitespace) != number.filterNot(Char::isWhitespace)) return null
-    return "$symbol ${first.trimStart()}"
+    // Written touching the number, so the symbol belongs to it and to nothing
+    // before it: "8 $ 5600" would also read as a price of eight.
+    return symbol + first.trimStart()
+}
+
+/**
+ * Whether a line is one glyph's worth of reading in a box about as wide as it
+ * is tall — which, just before a bare number, is likelier the symbol the
+ * recognizer could not make out than a word of its own. A chalked "$" alone
+ * came back as "8", "69" and "89" at different sizes of the same photograph.
+ */
+fun looksLikeLoneGlyph(line: OcrLine): Boolean {
+    val box = line.box ?: return false
+    return line.text.trim().length <= 2 && box.x1 - box.x0 <= box.height * 1.5
 }
 
 /** The same region, lengthened by [by] at the end its text starts from. */
