@@ -20,6 +20,14 @@ data class DetectionSettings(
      * believed. Below this it is read upright.
      */
     val minElongation: Double = 2.0,
+    /**
+     * A tilt smaller than this, in degrees, is read as none. Turning a crop
+     * resamples it, and a faint glyph does not survive that: a dotted minus on
+     * a receipt photographed three degrees off square vanished, and
+     * "-6964,80" read as a purchase. Text this close to level reads as well
+     * upright, so there is nothing to gain by turning it.
+     */
+    val minTiltDegrees: Double = 3.0,
 )
 
 /**
@@ -168,7 +176,8 @@ private fun fit(
     val minor = middle - spread
 
     val elongated = minor > 1e-6 && major / minor >= settings.minElongation
-    val angle = if (elongated) 0.5 * kotlin.math.atan2(2 * covXY, covXX - covYY) else 0.0
+    val fitted = if (elongated) 0.5 * kotlin.math.atan2(2 * covXY, covXX - covYY) else 0.0
+    val angle = if (kotlin.math.abs(fitted) < Math.toRadians(settings.minTiltDegrees)) 0.0 else fitted
 
     val cos = kotlin.math.cos(angle)
     val sin = kotlin.math.sin(angle)

@@ -25,10 +25,12 @@ data class BareAmount(val amount: Double, val range: IntRange)
  * - A number followed by a multiplication sign is a quantity, not a price:
  *   `2,50 x 14000,00` is two and a half kilos at fourteen thousand.
  * - A number followed by `%` is a rate.
+ * - A minus may arrive as `~`: a faint dotted dash on thermal paper is read
+ *   that way, and losing it would turn a discount into a purchase.
  */
 private val BARE_AMOUNT = Regex(
     "(?<![\\p{L}\\d.,:/-])" +
-    "([-–−]\\s?)?" +
+    "([-–−~]\\s?)?" +
     "(\\d{1,3}([.,\\u00a0\\u202f ])\\d{3}(?:\\3\\d{3})*(?!\\3)[.,]\\d{2}|\\d+[.,]\\d{2})" +
     "(?![\\d.,:/%]|\\p{L}|\\s?[xX×*](?:\\s|$))"
 )

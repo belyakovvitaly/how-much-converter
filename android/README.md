@@ -249,10 +249,19 @@ that are not — dates, times, weights, article codes, tax IDs:
 The recognizer's lines are kept with the photograph, so changing a currency or
 the switch re-reads the prices from them without reading the picture again.
 
-`ReceiptTest` holds these rules to the lines of a real supermarket receipt.
-Checked on the emulator against a rendering of the same lines: eight amounts
-converted, the dates, weights and codes left alone. What has not been checked is
-a photograph of one — thermal paper, curled, in a hand.
+`ReceiptTest` holds these rules to the lines of a real supermarket receipt, and
+`ReceiptPhotoTest` holds the engine to a photograph of it — thermal paper,
+curled, in a hand, at the size a gallery picture is read at, with the card's
+last digits blanked. All thirteen amounts are read, discounts with their minus,
+and nothing else on it is taken for money.
+
+The minus was the hard part. It is a faint dotted dash, and the recognizer
+reads it as `-`, as `~`, or not at all, and not at all is a discount shown as a
+purchase. `~` is taken as a minus. Losing it altogether turned out to be the
+rotation's doing: the receipt was three degrees off square, turning the crop by
+that much resampled the dash away, and a tilt that small is now read as none.
+Wider side margins did not bring it back, and a margin above and below did but
+cost the tag at twenty-five degrees its price.
 
 ## The conversion goes on the price
 
@@ -337,7 +346,8 @@ than it is wide keeps its angle at zero: a single character has no reading
 direction, and a confident wrong angle is worse than none.
 
 Tilts of eight, fifteen and twenty-five degrees now read correctly and invent
-nothing. Thirty degrees of *perspective* still misreads — foreshortening is not
+nothing. A tilt under three degrees is read as none: turning a crop resamples
+it, which costs faint glyphs and gains nothing on text that close to level. Thirty degrees of *perspective* still misreads — foreshortening is not
 rotation, and no single angle undoes it. `severePerspectiveIsStillMisread`
 records that rather than papering over it.
 

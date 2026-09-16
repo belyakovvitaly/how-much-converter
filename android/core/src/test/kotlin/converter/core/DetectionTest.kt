@@ -166,6 +166,26 @@ class DetectionTest {
     }
 
     @Test
+    fun `a line all but level is read as level`() {
+        // Sixty wide, stepping down one row halfway: under two degrees. Turning
+        // the crop by that much gains nothing and resamples away faint glyphs —
+        // a dotted minus on a receipt, which made a discount a purchase.
+        val band = { from: Int -> CharArray(60) { if (it >= 30 == (from == 1)) '#' else '.' }.concatToString() }
+        val (probs, w, h) = map(
+            ".".repeat(60),
+            band(0),
+            "#".repeat(60),
+            band(1),
+            ".".repeat(60),
+        )
+        val measured = detectBoxes(probs, w, h, DetectionSettings(unclipRatio = 0f, minTiltDegrees = 0.0)).single()
+        assertTrue(kotlin.math.abs(degrees(measured)) in 0.5..3.0, "fitted ${degrees(measured)}")
+
+        val found = detectBoxes(probs, w, h, DetectionSettings(unclipRatio = 0f)).single()
+        assertEquals(0.0, degrees(found), 0.0)
+    }
+
+    @Test
     fun `a blob with no direction is left upright rather than guessed at`() {
         // A single character or a speck has no reading direction, and a
         // confidently wrong angle would turn a readable crop into a diagonal one.

@@ -18,6 +18,8 @@ class ReceiptTest {
         assertEquals(listOf(32648.0), amounts("32648,00"))
         assertEquals(listOf(-9794.40), amounts("-9794,40"))
         assertEquals(listOf(-22371.60), amounts("-22371,60"))
+        // A faint dotted minus, as the recognizer reads it off thermal paper.
+        assertEquals(listOf(-6964.80), amounts("~6964,80"))
         assertEquals(listOf(52200.40), amounts("TOTAL 52200,40"))
         assertEquals(listOf(-5612.40), amounts("18708,00 -5612,40").drop(1))
     }
