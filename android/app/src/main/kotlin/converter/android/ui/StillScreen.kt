@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,15 +24,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import converter.core.LocatedPrice
 import converter.core.OcrLine
 import converter.core.RateTable
+import converter.core.Zoom
 
 /** A still photograph, with its prices converted in place. */
 sealed interface Still {
@@ -53,6 +62,8 @@ sealed interface Still {
  * The same overlay as the live camera, over a picture that holds still. A still
  * is read thoroughly rather than within a frame's budget — there is no next
  * frame to defer to, and no reason to hurry.
+ *
+ * Pinch or double tap to zoom; the labels are magnified with the picture.
  *
  * Back — the arrow, or the system's gesture — returns to the camera. Only the
  * camera itself lets back close the app.
@@ -85,25 +96,60 @@ fun StillScreen(
             is Still.Failed -> null
         }
 
-        if (image != null) {
-            Image(
-                bitmap = image.asImageBitmap(),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                // Fit, not crop: the overlay maps the whole picture onto this
-                // view, and a cropped edge would put a label off-screen.
-                contentScale = ContentScale.Fit,
-            )
-        }
+        // The picture and its labels are magnified together, so a label stays
+        // on its price at any zoom. Reset for every new picture.
+        var zoom by remember(image) { mutableStateOf(Zoom()) }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .pointerInput(image) {
+                    detectTransformGestures { centroid, pan, factor, _ ->
+                        zoom = zoom.transformed(
+                            factor = factor.toDouble(),
+                            focusX = centroid.x.toDouble(),
+                            focusY = centroid.y.toDouble(),
+                            panX = pan.x.toDouble(),
+                            panY = pan.y.toDouble(),
+                            width = size.width.toDouble(),
+                            height = size.height.toDouble(),
+                        )
+                    }
+                }
+                .pointerInput(image) {
+                    detectTapGestures(onDoubleTap = { at ->
+                        zoom = zoom.toggled(
+                            at.x.toDouble(), at.y.toDouble(),
+                            size.width.toDouble(), size.height.toDouble(),
+                        )
+                    })
+                }
+                .graphicsLayer {
+                    scaleX = zoom.scale.toFloat()
+                    scaleY = zoom.scale.toFloat()
+                    translationX = zoom.offsetX.toFloat()
+                    translationY = zoom.offsetY.toFloat()
+                }
+        ) {
+            if (image != null) {
+                Image(
+                    bitmap = image.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    // Fit, not crop: the overlay maps the whole picture onto
+                    // this view, and a cropped edge would put a label off-screen.
+                    contentScale = ContentScale.Fit,
+                )
+            }
 
-        if (still is Still.Read) {
-            PriceOverlay(
-                prices = prices,
-                imageWidth = still.image.width,
-                imageHeight = still.image.height,
-                rates = rates,
-                target = target,
-            )
+            if (still is Still.Read) {
+                PriceOverlay(
+                    prices = prices,
+                    imageWidth = still.image.width,
+                    imageHeight = still.image.height,
+                    rates = rates,
+                    target = target,
+                )
+            }
         }
 
         if (still is Still.Working) {

@@ -227,6 +227,12 @@ needs Android 14 with SDK extension 15; without it, the button opens the
 standalone picker as before, and so does a session that fails to start. The
 library, `androidx.photopicker`, is still an alpha.
 
+**Pinch or double tap to zoom.** The picture and its labels are magnified as
+one, so a label stays on its price at any zoom and nothing is read again; the
+picture never shrinks below the whole of it or slides past its edge. The
+arithmetic is [`Zoom`](core/src/main/kotlin/converter/core/Zoom.kt), tested
+without a screen.
+
 **Share** works from the other side: the app is listed when any app shares a
 picture, and the picture opens as if it had been picked. It can arrive before
 the models have loaded — a share starts the app cold — so a still waits for
