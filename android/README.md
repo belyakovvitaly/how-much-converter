@@ -214,6 +214,16 @@ there is no next frame to defer the rest to and no reason to hurry. That makes
 it the better tool for a crowded shelf, where the live view reads the largest
 text first and catches up over several frames.
 
+**Gallery** opens the system's photo picker inside the app, and one tap on a
+picture opens it. The picker as its own screen — which is what Android 16 shows
+once Google Photos is part of it — treats even a single choice as a selection
+to confirm and asks for Done; embedded, it reports a choice the moment it is
+made. It is still the system's picker, drawn by the system, so the app sees
+only the picture it is given and asks for no permission to see it. Embedding
+needs Android 14 with SDK extension 15; without it, the button opens the
+standalone picker as before, and so does a session that fails to start. The
+library, `androidx.photopicker`, is still an alpha.
+
 Two things a still needs that a frame does not:
 
 - **EXIF orientation.** A camera writes the picture in the sensor's frame and

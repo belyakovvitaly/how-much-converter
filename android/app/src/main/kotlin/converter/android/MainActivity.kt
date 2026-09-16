@@ -29,6 +29,8 @@ import converter.android.rates.RatesRepository
 import converter.android.rates.CurrencyStore
 import converter.android.ui.CameraScreen
 import converter.android.ui.CurrencyPicker
+import converter.android.ui.GalleryScreen
+import converter.android.ui.embeddedPickerAvailable
 import converter.android.ui.Still
 import converter.android.ui.StillScreen
 import converter.core.RateTable
@@ -59,6 +61,7 @@ class MainActivity : ComponentActivity() {
                     var picking by remember { mutableStateOf<Picking?>(null) }
                     var still by remember { mutableStateOf<Still?>(null) }
                     var receipt by rememberSaveable { mutableStateOf(false) }
+                    var browsing by remember { mutableStateOf(false) }
                     val scope = rememberCoroutineScope()
 
                     // What the prices are in, and what to turn them into. Not
@@ -113,10 +116,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    val fromGallery = rememberLauncherForActivityResult(
-                        ActivityResultContracts.PickVisualMedia()
-                    ) { uri: Uri? ->
-                        if (uri == null) return@rememberLauncherForActivityResult
+                    fun open(uri: Uri) {
                         still = Still.Working(null)
                         scope.launch {
                             val image = withContext(Dispatchers.IO) {
@@ -125,6 +125,16 @@ class MainActivity : ComponentActivity() {
                             read(image)
                         }
                     }
+
+                    // The standalone picker, for where the embedded one is not
+                    // available.
+                    val fromGallery = rememberLauncherForActivityResult(
+                        ActivityResultContracts.PickVisualMedia()
+                    ) { uri: Uri? -> uri?.let(::open) }
+
+                    fun pickStandalone() = fromGallery.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
 
                     CameraScreen(
                         engine = engine,
@@ -135,13 +145,24 @@ class MainActivity : ComponentActivity() {
                         onChangeTarget = { picking = Picking.Target },
                         onPhoto = { read(it) },
                         onPickFromGallery = {
-                            fromGallery.launch(
-                                PickVisualMediaRequest(
-                                    ActivityResultContracts.PickVisualMedia.ImageOnly
-                                )
-                            )
+                            if (embeddedPickerAvailable()) browsing = true else pickStandalone()
                         },
                     )
+
+                    if (browsing && embeddedPickerAvailable()) {
+                        GalleryScreen(
+                            onPicked = { uri ->
+                                browsing = false
+                                open(uri)
+                            },
+                            onUnavailable = {
+                                Log.w(TAG, "embedded photo picker failed; using the standalone one")
+                                browsing = false
+                                pickStandalone()
+                            },
+                            onClose = { browsing = false },
+                        )
+                    }
 
                     still?.let { current ->
                         // Worked out again when a currency or the receipt
