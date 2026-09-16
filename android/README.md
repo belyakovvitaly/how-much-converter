@@ -147,6 +147,33 @@ as digits. The margin costs nothing on the benchmark corpus, and more of it
 starts losing readings. `doesNotSwallowACurrencyGlyphIntoTheNumber` pins the
 case that used to fail.
 
+## The symbol the detector missed
+
+A symbol written apart from its digits — a chalked `$ 5600 x Kg` on a street
+sign — is thin and sparse, and the detector finds it only as a scrap the
+recognizer cannot read. The number is read, the symbol is not, and a bare
+number is rightly left alone: the sign showed six printed prices converted and
+the chalked one not.
+
+So a line that starts with a bare number gets a second look, with a line's
+height of room before it, once everything else in the frame has been read —
+and only if nothing else that was read lies there, since reading across a
+neighbour could only confuse the two. The symbol reads in some crops and not
+others, so a few are tried, turned to the line's angle and square to the frame,
+at full height and trimmed toward the digits' band: the box is as tall as the
+"Kg" hanging below them.
+
+Whatever is tried, only a symbol can come of it.
+[`withPrefixFrom`](core/src/main/kotlin/converter/core/PrefixLook.kt) takes a
+known currency symbol — one with a mark that is not a letter — and only when it
+stands directly before the very number the first reading had; the digits are
+always the first reading's. A symbol misread as a digit and fused into the
+number changes that number, and is refused. A live frame takes at most four
+second looks, and the shelf's first frame went from 266 ms to 283.
+
+`SignPhotoTest` holds the engine to the sign, as a messenger delivered it: all
+seven prices, the chalked one included.
+
 ## Box tracking
 
 Detection costs one model run for a whole frame; recognition costs one run per

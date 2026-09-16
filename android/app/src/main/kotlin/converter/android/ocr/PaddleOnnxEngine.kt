@@ -15,6 +15,10 @@ import converter.core.RotatedBox
 import converter.core.TrackerState
 import converter.core.ctcDecode
 import converter.core.detectBoxes
+import converter.core.extendedBack
+import converter.core.intersects
+import converter.core.leadingBareNumber
+import converter.core.withPrefixFrom
 import converter.core.reuseFor
 import converter.core.scaleTo
 import java.io.Closeable
@@ -120,6 +124,8 @@ class PaddleOnnxEngine private constructor(
         var recognised = 0
         var reusedCount = 0
         var skipped = 0
+        var looked = 0
+        val fresh = mutableListOf<Fresh>()
 
         // Reading costs about the same for every box, and a shelf is mostly
         // fine print that could never be a price: on the benchmark's shelf, 28
@@ -171,6 +177,55 @@ class PaddleOnnxEngine private constructor(
             lines += OcrLine(reading.text, confidence, box)
             carried += TrackedLine(box, reading.text, confidence, reuses = 0)
             recognised++
+            fresh += Fresh(lines.lastIndex, carried.lastIndex, tilted)
+        }
+
+        // A number with nothing to say its currency may have a symbol just
+        // before it that the detector found only as a scrap the recognizer
+        // could not read. Looked for once everything else has been read, so
+        // that only text actually read counts as being in the way: reading
+        // across a neighbour could only confuse the two. See PrefixLook.kt.
+        for (candidate in fresh) {
+            if (!thorough && looked >= MAX_PREFIX_LOOKS) break
+            val line = lines[candidate.line]
+            val box = line.box ?: continue
+            if (leadingBareNumber(line.text) == null) continue
+
+            val wider = candidate.tilted.extendedBack(candidate.tilted.height * PREFIX_LOOK)
+            val inset = box.height * 0.2
+            val before = Box(wider.bounds.x0, box.y0 + inset, box.x0, box.y1 - inset)
+            val crowded = lines.any { other -> other !== line && other.box?.intersects(before) == true }
+            if (crowded) continue
+
+            looked++
+            // The symbol reads only in some crops and not others, so a few are
+            // tried: turned to the line's angle, as it was read, and square to
+            // the frame, each at full height and trimmed towards the middle.
+            // A line's box is as tall as its tallest part, and on a chalked
+            // sign that is the "Kg" hanging below the digits, not the digits;
+            // trimmed nearer their band, "$" reads where it did not. Whatever
+            // is tried, only a symbol can be taken from it, never a digit.
+            val bounds = wider.bounds
+            val upright = RotatedBox(
+                centerX = (bounds.x0 + bounds.x1) / 2,
+                centerY = (bounds.y0 + bounds.y1) / 2,
+                width = bounds.x1 - bounds.x0,
+                height = bounds.y1 - bounds.y0,
+                angle = 0.0,
+            )
+            val tries = PREFIX_TRIMS.flatMap { trim ->
+                listOf(wider, upright).map { it.copy(height = it.height * (1 - 2 * trim)) }
+            }.let { if (thorough) it else it.take(2) }
+            val text = tries.firstNotNullOfOrNull { region ->
+                val widerCrop = crop(frame, region) ?: return@firstNotNullOfOrNull null
+                val again = read(widerCrop)
+                widerCrop.recycle()
+                again?.let { withPrefixFrom(line.text, it.text) }
+            } ?: continue
+            // Grown to the left only, over the symbol; the looked-at region is
+            // taller than the line and would put the label over the line above.
+            lines[candidate.line] = line.copy(text = text, box = box.copy(x0 = minOf(box.x0, bounds.x0)))
+            carried[candidate.carried] = carried[candidate.carried].copy(text = text)
         }
 
         tracker = TrackerState(carried)
@@ -204,6 +259,9 @@ class PaddleOnnxEngine private constructor(
             }
         }
     }
+
+    /** A line read in this frame: where it sits in both lists, and how it lies. */
+    private class Fresh(val line: Int, val carried: Int, val tilted: RotatedBox)
 
     // --- tensors ------------------------------------------------------------
     private class Planar(val values: FloatArray, val width: Int, val height: Int)
@@ -333,6 +391,15 @@ class PaddleOnnxEngine private constructor(
 
         /** Text shorter than this fraction of the frame reads as noise. */
         private const val MIN_TEXT_HEIGHT = 0.012
+
+        /** How far to look before a bare number for its symbol, in text heights. */
+        private const val PREFIX_LOOK = 1.0
+
+        /** How much of a line's height each second look trims from top and bottom. */
+        private val PREFIX_TRIMS = listOf(0.0, 0.15, 0.25)
+
+        /** Second looks per live frame; a still takes as many as it needs. */
+        private const val MAX_PREFIX_LOOKS = 4
 
         /** Side margin around a crop, in units of the text height. */
         private const val SIDE_MARGIN = 0.3
