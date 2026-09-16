@@ -148,3 +148,45 @@ class LocalCurrencyResolvesAmbiguityTest {
         assertEquals(emptyList(), read("$1,299", localCurrency("pl")))
     }
 }
+
+class FlagTest {
+
+    @Test
+    fun `a currency shows its country's flag`() {
+        assertEquals("🇷🇺", flagFor("RUB"))   // ru
+        assertEquals("🇺🇦", flagFor("UAH"))   // ua
+        assertEquals("🇦🇷", flagFor("ARS"))   // ar
+    }
+
+    @Test
+    fun `a currency several countries share shows the one that issues it`() {
+        // Not whichever member sorts first: the euro is the union's.
+        assertEquals("🇪🇺", flagFor("EUR"))   // eu
+        assertEquals("🇺🇸", flagFor("USD"))   // us, not Ecuador
+        assertEquals("🇨🇭", flagFor("CHF"))   // ch, not Liechtenstein
+    }
+
+    @Test
+    fun `every currency the picker can show has a flag`() {
+        // The generator refuses to write the table without one, so this is the
+        // guard on the Kotlin side of that.
+        for (code in CURRENCY_CODES) {
+            assertEquals(true, flagFor(code) != null, "$code has no flag")
+        }
+    }
+
+    @Test
+    fun `a currency nobody has heard of has no flag rather than a broken one`() {
+        assertNull(flagFor("XYZ"))
+        assertNull(flagFor(""))
+    }
+
+    @Test
+    fun `a flag is one glyph pair, not a pair of letters`() {
+        val flag = flagFor("RUB")!!
+        // Two surrogate pairs: four chars, two code points, both regional
+        // indicators. A phone that cannot draw it shows two letters, not junk.
+        assertEquals(4, flag.length)
+        assertEquals(2, flag.codePointCount(0, flag.length))
+    }
+}

@@ -1,7 +1,10 @@
 package converter.android.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row as LayoutRow
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -12,11 +15,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import converter.core.CURRENCY_CODES
 import converter.core.CURRENCY_NAMES
+import converter.core.flagFor
 
 /**
  * Picks one of the two currencies.
@@ -51,6 +56,7 @@ fun CurrencyPicker(
                             (detected?.let { " — $it" } ?: " — could not tell"),
                         selected = automatic,
                         onClick = { onPick(null) },
+                        flag = detected?.let { flagFor(it) },
                     )
                 }
                 items(CURRENCY_CODES) { code ->
@@ -59,6 +65,7 @@ fun CurrencyPicker(
                         subtitle = CURRENCY_NAMES[code].orEmpty(),
                         selected = !automatic && code == current,
                         onClick = { onPick(code) },
+                        flag = flagFor(code),
                     )
                 }
             }
@@ -67,26 +74,42 @@ fun CurrencyPicker(
 }
 
 @Composable
-private fun Row(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
-    Column(
-        Modifier
+private fun Row(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    flag: String? = null,
+) {
+    LayoutRow(
+        modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurface,
-        )
-        if (subtitle.isNotEmpty()) {
+        // A fixed width whether or not there is a flag, so the codes line up
+        // down the list rather than stepping in and out.
+        Box(Modifier.width(44.dp)) {
+            if (flag != null) {
+                Text(text = flag, style = MaterialTheme.typography.headlineSmall)
+            }
+        }
+        Column {
             Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                color = if (selected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface,
             )
+            if (subtitle.isNotEmpty()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

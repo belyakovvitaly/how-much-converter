@@ -102,6 +102,39 @@ def code_by_region(name):
     return dict(pairs)
 
 
+# Which country's flag stands for a currency in the picker. Most follow from
+# COUNTRY_TO_CURRENCY; these are the ones several countries share, or none does.
+FLAG_OVERRIDES = {
+    "EUR": "eu",   # the union's own flag, rather than picking a member
+    "USD": "us",   # also spent in Ecuador
+    "GBP": "gb",
+    "CHF": "ch",   # also Liechtenstein
+    "BGN": "bg",   # Bulgaria prices in euro now; the lev is kept for old pages
+}
+
+
+def currency_to_country():
+    """A flag for every currency the picker can show.
+
+    Display only: this says which flag to draw beside a code, never what a page
+    or a photograph is priced in.
+    """
+    by_currency = {}
+    for country, code in code_by_region("COUNTRY_TO_CURRENCY").items():
+        by_currency.setdefault(code, []).append(country)
+
+    chosen = {code: sorted(countries)[0] for code, countries in by_currency.items()}
+    chosen.update(FLAG_OVERRIDES)
+
+    missing = [code for code in currency_codes() if code not in chosen]
+    if missing:
+        sys.exit(
+            f"no flag for {', '.join(missing)} — add them to FLAG_OVERRIDES in "
+            f"{pathlib.Path(__file__).name}"
+        )
+    return {code: chosen[code] for code in currency_codes()}
+
+
 def currency_codes():
     body = block("CURRENCY_NAMES")
     codes = re.findall(r"^\s*([A-Z]{3}):", body, re.M)
@@ -247,6 +280,11 @@ val LANG_TO_CURRENCY: Map<String, String> = mapOf(
 {kt_map(code_by_region("LANG_TO_CURRENCY"))}
 )
 
+/** Which country's flag stands for a currency. Display only. */
+val CURRENCY_TO_COUNTRY: Map<String, String> = mapOf(
+{kt_map(currency_to_country())}
+)
+
 /** Codes that are also everyday English words, so only read in capitals. */
 val CODES_NEEDING_CAPITALS: Set<String> = setOf(
     {", ".join(kt_string(c) for c in codes_needing_capitals())}
@@ -294,7 +332,8 @@ def main():
     TARGET.write_text(generated, encoding="utf-8")
     print(f"{TARGET.relative_to(ROOT)}: {len(symbol_to_code())} symbols, "
           f"{len(currency_codes())} currencies, {len(token_patterns())} token patterns, "
-          f"{len(code_by_region('COUNTRY_TO_CURRENCY'))} countries")
+          f"{len(code_by_region('COUNTRY_TO_CURRENCY'))} countries, "
+          f"{len(currency_to_country())} flags")
 
 
 if __name__ == "__main__":

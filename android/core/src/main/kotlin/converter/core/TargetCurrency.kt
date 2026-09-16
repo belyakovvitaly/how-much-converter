@@ -61,3 +61,26 @@ fun homeCurrency(
         ?: currencyForCountry(localeCountry)
         ?: currencyForLanguage(language)
         ?: fallback
+
+/**
+ * The flag that stands for a currency, as an emoji, or null if there is none.
+ *
+ * Two regional indicator letters, which every phone draws as a flag — no images
+ * to bundle and nothing to keep in step with a design. Display only: this says
+ * what to draw beside a code in a list, never what anything is priced in.
+ *
+ * A currency several countries share gets the one it is issued by, not whichever
+ * member happens to sort first: the euro shows the union's own flag.
+ */
+fun flagFor(currency: String): String? {
+    val country = CURRENCY_TO_COUNTRY[currency] ?: return null
+    if (country.length != 2) return null
+
+    val base = 0x1F1E6 - 'a'.code
+    val first = country[0].lowercaseChar()
+    val second = country[1].lowercaseChar()
+    if (first !in 'a'..'z' || second !in 'a'..'z') return null
+
+    return String(Character.toChars(base + first.code)) +
+        String(Character.toChars(base + second.code))
+}

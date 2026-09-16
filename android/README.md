@@ -65,6 +65,17 @@ megabytes for the sake of a circle and a picture frame.
 The engine says when it is not ready yet, and the panel says "Starting…" rather
 than reporting no price in view about a price plainly in view.
 
+The picker shows a flag beside each currency. They are emoji — two regional
+indicator letters, drawn by the phone — so there are no images to bundle and
+nothing to keep in step with a design. Which flag stands for which currency is
+generated alongside the rest from `COUNTRY_TO_CURRENCY`, with the handful that
+several countries share named explicitly: the euro shows the union's own flag
+rather than whichever member sorts first. It is a display choice and nothing
+reads it back.
+
+The launcher icon is two arrows passing each other, in the same green as the
+extension's, drawn as vectors rather than shipped as bitmaps.
+
 ## What a frame costs, and where
 
 Measured on an emulator, over a shelf of six tags surrounded by the fine print
