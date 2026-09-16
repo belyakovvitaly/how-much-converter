@@ -75,11 +75,13 @@ several countries share named explicitly: the euro shows the union's own flag
 rather than whichever member sorts first. It is a display choice and nothing
 reads it back.
 
-The launcher icon is `$?` — the app's name as a mark, and the question it
-answers — in the same green as the extension's, drawn as vector paths rather
-than shipped as bitmaps. A vector drawable has no text, so the glyphs are paths;
-they were settled in a browser first, since SVG shares this path syntax exactly
-and a reinstall a guess is a poor way to draw.
+The launcher icon is a picture: a camera, and € → $ under it. It is a bitmap in
+`mipmap-*`, one per density, filling the middle 72dp of the adaptive icon's 108
+— the part a launcher shows. Its own rounded corners are cut to transparency
+and a gradient in the same blues sits behind, so a launcher whose mask is
+squarer than those corners shows blue there rather than the light grey the
+picture came with. There is no monochrome layer, because a picture drawn in one
+colour is a solid square.
 
 ## What a frame costs, and where
 
