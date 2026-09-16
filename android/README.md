@@ -335,6 +335,15 @@ locale, then its language.
 Either can be set by hand: the two underlined currencies under the viewfinder
 open a picker each.
 
+**Never one currency twice.** Converting a currency into itself answers
+nothing, so each picker leaves out the other side's currency, and "Automatic"
+cannot be picked where detection would land on it. When the two still come out
+the same — at home, both detections agree — a choice outranks a detection and
+the side without one is left unknown: the target shows `?`, nothing is
+converted, and the panel asks what to convert into. A price already in the
+target currency gets no label, since it would only repeat the tag.
+`resolveCurrencies` holds the rule.
+
 An earlier version of this got the direction backwards — it detected the
 *target* from where the phone was, which in Georgia would have converted lari
 into lari, useless in exactly the situation the app is for. The tests now name

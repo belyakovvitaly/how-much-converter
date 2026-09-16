@@ -17,6 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import converter.core.CURRENCY_CODES
@@ -30,6 +31,10 @@ import converter.core.flagFor
  * beside it so the choice is informed rather than blind. Detection can come to
  * nothing for the local currency — a phone with no network knows where it is
  * from but not where it is — and the row says so rather than pretending.
+ *
+ * The other side's currency is not in the list: converting a currency into
+ * itself answers nothing. If detection would land on it, "Automatic" says so
+ * and cannot be picked.
  */
 @Composable
 fun CurrencyPicker(
@@ -38,6 +43,10 @@ fun CurrencyPicker(
     automatic: Boolean,
     detected: String?,
     automaticSubtitle: String,
+    /** The other side's currency, which this one may not also be. */
+    excluded: String?,
+    /** What the other side is, for saying why a row is not offered. */
+    excludedRole: String,
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -50,16 +59,21 @@ fun CurrencyPicker(
         text = {
             LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
                 item {
+                    val blocked = detected != null && detected == excluded
                     Row(
                         title = "Automatic",
-                        subtitle = automaticSubtitle +
-                            (detected?.let { " — $it" } ?: " — could not tell"),
+                        subtitle = automaticSubtitle + when {
+                            detected == null -> " — could not tell"
+                            blocked -> " — $detected, already $excludedRole"
+                            else -> " — $detected"
+                        },
                         selected = automatic,
                         onClick = { onPick(null) },
                         flag = detected?.let { flagFor(it) },
+                        enabled = !blocked,
                     )
                 }
-                items(CURRENCY_CODES) { code ->
+                items(CURRENCY_CODES.filter { it != excluded }) { code ->
                     Row(
                         title = code,
                         subtitle = CURRENCY_NAMES[code].orEmpty(),
@@ -80,11 +94,13 @@ private fun Row(
     selected: Boolean,
     onClick: () -> Unit,
     flag: String? = null,
+    enabled: Boolean = true,
 ) {
     LayoutRow(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
+            .alpha(if (enabled) 1f else 0.5f)
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

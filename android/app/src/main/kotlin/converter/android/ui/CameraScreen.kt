@@ -89,8 +89,8 @@ fun CameraScreen(
     rates: RateTable?,
     /** What the prices in view are in; null when the place is unknown. */
     source: String?,
-    /** What to convert into. */
-    target: String,
+    /** What to convert into; null until the reader says. */
+    target: String?,
     onChangeSource: () -> Unit = {},
     onChangeTarget: () -> Unit = {},
     /** A photograph taken here, already the right way up. */
@@ -287,7 +287,7 @@ private fun ReadingPanel(
     frame: FrameState,
     rates: RateTable?,
     source: String?,
-    target: String,
+    target: String?,
     onChangeSource: () -> Unit,
     onChangeTarget: () -> Unit,
     onPhoto: () -> Unit,
@@ -305,7 +305,7 @@ private fun ReadingPanel(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Status(frame = frame, rates = rates, engine = engine)
+        Status(frame = frame, rates = rates, engine = engine, target = target)
         CurrencyBar(
             source = source,
             target = target,
@@ -330,7 +330,7 @@ private fun ReadingPanel(
 @Composable
 internal fun CurrencyBar(
     source: String?,
-    target: String,
+    target: String?,
     onChangeSource: () -> Unit,
     onChangeTarget: () -> Unit,
 ) {
@@ -342,7 +342,7 @@ internal fun CurrencyBar(
             style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
-        CurrencyButton(target, onChangeTarget)
+        CurrencyButton(target ?: "?", onChangeTarget)
     }
 }
 
@@ -361,8 +361,16 @@ private fun CurrencyButton(code: String, onClick: () -> Unit) {
 
 /** One quiet line: what came of the last look, and nothing about the machinery. */
 @Composable
-private fun Status(frame: FrameState, rates: RateTable?, engine: OcrEngine) {
+private fun Status(frame: FrameState, rates: RateTable?, engine: OcrEngine, target: String?) {
     when {
+        // Nothing is converted into the currency the prices are already in,
+        // so until another is chosen there is nothing to show but the ask.
+        target == null -> Text(
+            text = "Choose what to convert into",
+            color = Color(0xFFFFB74D),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+
         // Until the models are in memory there is no engine, and reporting "no
         // price in view" about a price plainly in view would be a small lie.
         !engine.ready -> Text(

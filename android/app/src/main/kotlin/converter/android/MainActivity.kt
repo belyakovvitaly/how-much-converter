@@ -41,6 +41,7 @@ import converter.core.RateTable
 import converter.core.PriceContext
 import converter.core.RatesOutcome
 import converter.core.locatePrices
+import converter.core.resolveCurrencies
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -82,8 +83,13 @@ class MainActivity : ComponentActivity() {
                     // What the prices are in, and what to turn them into. Not
                     // the same question: abroad, the first is the country's and
                     // the second is the reader's.
-                    val source = chosenLocal ?: detectedLocal
-                    val target = chosenHome ?: detectedHome
+                    // Never one currency twice: see resolveCurrencies.
+                    val (source, target) = resolveCurrencies(
+                        chosenSource = chosenLocal,
+                        detectedSource = detectedLocal,
+                        chosenTarget = chosenHome,
+                        detectedTarget = detectedHome,
+                    )
 
                     // Reading two ONNX models out of assets costs a second or
                     // more; the camera starts without waiting for it, and the
@@ -239,6 +245,8 @@ class MainActivity : ComponentActivity() {
                             automatic = chosenLocal == null,
                             detected = detectedLocal,
                             automaticSubtitle = "where the phone is",
+                            excluded = target,
+                            excludedRole = "what you convert into",
                             onPick = { code ->
                                 currencies.local = code
                                 chosenLocal = code
@@ -253,6 +261,8 @@ class MainActivity : ComponentActivity() {
                             automatic = chosenHome == null,
                             detected = detectedHome,
                             automaticSubtitle = "where the phone is from",
+                            excluded = source,
+                            excludedRole = "what the prices are in",
                             onPick = { code ->
                                 currencies.home = code
                                 chosenHome = code

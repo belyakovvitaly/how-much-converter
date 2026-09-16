@@ -68,7 +68,7 @@ fun StillScreen(
     prices: List<LocatedPrice>,
     rates: RateTable?,
     source: String?,
-    target: String,
+    target: String?,
     receipt: Boolean,
     onReceiptChange: (Boolean) -> Unit,
     onChangeSource: () -> Unit,
@@ -125,6 +125,7 @@ fun StillScreen(
                     is Still.Failed -> still.reason
                     is Still.Read -> when {
                         receipt && source == null -> "Choose the receipt's currency"
+                        target == null -> "Choose what to convert into"
                         prices.isEmpty() -> "No price found"
                         prices.size == 1 -> "1 price converted"
                         else -> "${prices.size} prices converted"

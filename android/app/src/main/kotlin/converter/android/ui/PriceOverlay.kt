@@ -40,16 +40,19 @@ fun PriceOverlay(
     imageWidth: Int,
     imageHeight: Int,
     rates: RateTable?,
-    target: String,
+    /** Null when there is nothing to convert into; then nothing is drawn. */
+    target: String?,
     modifier: Modifier = Modifier,
 ) {
     val measurer = rememberTextMeasurer()
 
     Canvas(modifier.fillMaxSize()) {
-        if (imageWidth <= 0 || imageHeight <= 0 || rates == null) return@Canvas
+        if (imageWidth <= 0 || imageHeight <= 0 || rates == null || target == null) return@Canvas
         val viewport = Viewport(imageWidth, imageHeight, size.width, size.height)
 
         for (located in prices) {
+            // Already in the target currency: a label would repeat the tag.
+            if (located.price.code == target) continue
             val converted = rates.convert(located.price.amount, located.price.code, target)
                 ?: continue
             drawLabel(

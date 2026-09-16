@@ -189,4 +189,31 @@ class FlagTest {
         assertEquals(4, flag.length)
         assertEquals(2, flag.codePointCount(0, flag.length))
     }
+
+    @Test
+    fun `different currencies are taken as they are`() {
+        assertEquals(CurrencyPair("ARS", "RUB"), resolveCurrencies(null, "ARS", null, "RUB"))
+        assertEquals(CurrencyPair("GEL", "EUR"), resolveCurrencies("GEL", "ARS", "EUR", "RUB"))
+        assertEquals(CurrencyPair(null, "RUB"), resolveCurrencies(null, null, null, "RUB"))
+    }
+
+    @Test
+    fun `at home nothing is converted until the reader says into what`() {
+        assertEquals(CurrencyPair("USD", null), resolveCurrencies(null, "USD", null, "USD"))
+    }
+
+    @Test
+    fun `a choice outranks a detection of the same currency`() {
+        // Chose to convert into pesos while standing in Argentina: the prices
+        // are then of unknown currency, not pesos into pesos.
+        assertEquals(CurrencyPair(null, "ARS"), resolveCurrencies(null, "ARS", "ARS", "RUB"))
+        // Chose pesos as the prices' currency, and the phone is Argentine.
+        assertEquals(CurrencyPair("ARS", null), resolveCurrencies("ARS", "USD", null, "ARS"))
+    }
+
+    @Test
+    fun `two choices of one currency keep the prices and drop the target`() {
+        // Only reachable from settings saved before the pickers kept them apart.
+        assertEquals(CurrencyPair("ARS", null), resolveCurrencies("ARS", null, "ARS", "USD"))
+    }
 }

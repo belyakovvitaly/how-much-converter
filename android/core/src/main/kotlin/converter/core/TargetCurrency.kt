@@ -62,6 +62,32 @@ fun homeCurrency(
         ?: currencyForLanguage(language)
         ?: fallback
 
+/** The two currencies in effect. Never the same one twice; either may be unknown. */
+data class CurrencyPair(val source: String?, val target: String?)
+
+/**
+ * Which currencies are in effect, given what the reader chose and what was
+ * detected.
+ *
+ * A pair that is one currency twice converts nothing into itself, so it is
+ * never the answer. When both sides come out the same, a choice the reader made
+ * outranks a detection, and the side left without one is left unknown rather
+ * than filled with a guess. At home, where both detections agree, that is the
+ * target: nothing is converted until the reader says into what.
+ */
+fun resolveCurrencies(
+    chosenSource: String?,
+    detectedSource: String?,
+    chosenTarget: String?,
+    detectedTarget: String?,
+): CurrencyPair {
+    val source = chosenSource ?: detectedSource
+    val target = chosenTarget ?: detectedTarget
+    if (source == null || source != target) return CurrencyPair(source, target)
+    return if (chosenTarget != null && chosenSource == null) CurrencyPair(null, target)
+           else CurrencyPair(source, null)
+}
+
 /**
  * The flag that stands for a currency, as an emoji, or null if there is none.
  *
