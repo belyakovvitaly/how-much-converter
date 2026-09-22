@@ -22,6 +22,11 @@ which names no currency at all.
 
 ![Converted prices on a shop page](docs/screenshot-inline.png)
 
+Instead of the price, the conversion takes the price's place, size and colour;
+the shop's own is in its tooltip:
+
+![Conversions in place of the prices](docs/screenshot-replace.png)
+
 When pointed at, the page keeps its own prices, underlined where there is a
 conversion to show:
 
