@@ -106,6 +106,25 @@
         $("display").dispatchEvent(new Event("change"));
         await new Promise((r) => setTimeout(r, 50));
         check("choosing another is saved", STORE.display, "hover");
+        // Excluding the site the popup was opened on, and letting it go again.
+        check("the page's site is named", $("siteName").textContent, "amarket.com.bo");
+        check("…and offered to be excluded", $("siteToggle").textContent, "Exclude this site");
+        check("no excluded sites, no list", $("excludedList").hidden, true);
+        $("siteToggle").click();
+        await new Promise((r) => setTimeout(r, 50));
+        check("excluding it saves the site", JSON.stringify(STORE.excludedSites), '["amarket.com.bo"]');
+        check("…and offers it back", $("siteToggle").textContent, "Convert here again");
+        check("…and lists it", $("excludedCount").textContent, "1 excluded site");
+        STORE.excludedSites = ["amarket.com.bo", "zara.com"];
+        $("siteToggle").click();
+        await new Promise((r) => setTimeout(r, 50));
+        check("converting here again takes out only this site",
+          JSON.stringify(STORE.excludedSites), '["zara.com"]');
+        $("excludedItems").querySelector("button").click();
+        await new Promise((r) => setTimeout(r, 50));
+        check("a listed site can be removed", JSON.stringify(STORE.excludedSites), "[]");
+        check("…and the list goes with the last one", $("excludedList").hidden, true);
+
         check("the report button is the new one", $("report").textContent.trim(), "It didn't work here");
 
         // Flags. The table is checked on its own, whatever the system can draw;

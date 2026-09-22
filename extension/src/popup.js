@@ -5,7 +5,7 @@
 // this page's global scope — a top-level `const CURRENCIES` here would collide
 // with the one it declares and stop this whole file from parsing.
 (function () {
-  const { CURRENCY_NAMES, CURRENCIES, DOLLAR_CURRENCIES, flagFor } = self.HMC;
+  const { CURRENCY_NAMES, CURRENCIES, DOLLAR_CURRENCIES, flagFor, siteOf } = self.HMC;
 
   const els = {
     enabled: document.getElementById("enabled"),
@@ -23,6 +23,13 @@
     issueReports: document.getElementById("issueReports"),
     clearReports: document.getElementById("clearReports"),
     version: document.getElementById("version"),
+    site: document.getElementById("site"),
+    siteState: document.getElementById("siteState"),
+    siteName: document.getElementById("siteName"),
+    siteToggle: document.getElementById("siteToggle"),
+    excludedList: document.getElementById("excludedList"),
+    excludedCount: document.getElementById("excludedCount"),
+    excludedItems: document.getElementById("excludedItems"),
   };
 
   const VERSION = chrome.runtime.getManifest().version;
@@ -256,6 +263,75 @@
     chrome.tabs.create({ url });
   });
 
+  // --- Sites left alone ------------------------------------------------------
+  //
+  // A list of sites, as siteOf names them, in chrome.storage.local beside the
+  // other settings — not storage.sync, which would hand Google a list of the
+  // shops one reads. The content script on each page checks it and listens for
+  // changes, so a site is let go of, or taken up again, without a reload.
+
+  let currentSite = null;
+
+  async function excludedSites() {
+    const { excludedSites = [] } = await chrome.storage.local.get("excludedSites");
+    return excludedSites;
+  }
+
+  async function setExcluded(site, excluded) {
+    const sites = (await excludedSites()).filter((s) => s !== site);
+    if (excluded) sites.push(site);
+    sites.sort();
+    await chrome.storage.local.set({ excludedSites: sites });
+    renderSites();
+  }
+
+  async function renderSites() {
+    const sites = await excludedSites();
+
+    // Only where the content script answered: not on chrome:// pages, the
+    // store, or a file, where there is nothing to switch off.
+    els.site.hidden = !currentSite;
+    if (currentSite) {
+      const off = sites.includes(currentSite);
+      els.siteState.textContent = off ? "Left alone:" : "Converting on";
+      els.siteName.textContent = currentSite;
+      els.siteName.parentElement.title = currentSite;
+      els.siteToggle.textContent = off ? "Convert here again" : "Exclude this site";
+    }
+
+    els.excludedList.hidden = sites.length === 0;
+    els.excludedCount.textContent =
+      sites.length === 1 ? "1 excluded site" : `${sites.length} excluded sites`;
+    els.excludedItems.replaceChildren(
+      ...sites.map((site) => {
+        const li = document.createElement("li");
+        const name = document.createElement("span");
+        name.textContent = site;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "Remove";
+        remove.addEventListener("click", () => setExcluded(site, false));
+        li.append(name, remove);
+        return li;
+      })
+    );
+  }
+
+  els.siteToggle.addEventListener("click", async () => {
+    if (!currentSite) return;
+    setExcluded(currentSite, !(await excludedSites()).includes(currentSite));
+  });
+
+  async function findSite() {
+    const info = await pageInfo();
+    try {
+      currentSite = (info && siteOf(new URL(info.url).hostname)) || null;
+    } catch {
+      currentSite = null;
+    }
+    renderSites();
+  }
+
   els.clearReports.addEventListener("click", async () => {
     await chrome.storage.local.remove("reports");
     els.reportStatus.textContent = "Cleared";
@@ -264,4 +340,6 @@
 
   load();
   renderReports();
+  renderSites();
+  findSite();
 })();

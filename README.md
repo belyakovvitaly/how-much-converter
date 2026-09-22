@@ -144,7 +144,24 @@ GitHub release.
 | Which currency a page is in | `extension/src/currency.js` | `priceCurrency` markup first, then the ccTLD, then the `lang` attribute — and where the first two disagree, the language breaks the tie. This is what makes a shared symbol readable. |
 | Page changes | `extension/src/content.js` | Two passes — text nodes that hold a whole price, then shallow elements that spread one across children — marking each price `data-hmc`, showing its conversion beside it, in its place or on hover, and re-scanning on DOM mutations. |
 | Hiding and the tooltip | `extension/src/content.css` | Loaded by the manifest rather than written into the page, which a site's Content-Security-Policy could refuse. Keyed to the extension's own attributes only. |
-| Settings | `extension/src/popup.*` | Target currency, where the conversion is shown, what `$` should mean, on/off, a manual rate refresh, and the list of reported pages. |
+| Settings | `extension/src/popup.*` | Target currency, where the conversion is shown, what `$` should mean, on/off, the sites excluded, a manual rate refresh, and the list of reported pages. |
+
+## Leaving a site alone
+
+**Exclude this site** in the popup switches the extension off for the whole
+site the tab is on — every page and subdomain, so excluding it on
+`articulo.mercadolibre.com.ar` covers `www.mercadolibre.com.ar` too. The page
+returns to exactly what the shop sent, without a reload, and the popup lists
+the excluded sites for taking one back.
+
+The list is kept in `chrome.storage.local` with the other settings, as site
+names only. Not `storage.sync`: that would follow you to other machines, but by
+way of your Google account, as a list of the shops you read.
+
+Which part of a hostname is "the site" is a rule of thumb rather than the Public
+Suffix List: a country's generic second level (`com.ar`, `co.uk`, `com.br`)
+takes three labels, anything else two. A host on a shared domain — someone's
+`name.github.io` — is excluded with all its neighbours.
 
 ## Reporting a page that does not work
 

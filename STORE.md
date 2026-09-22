@@ -63,6 +63,8 @@ prepared in this file.
 >
 > • Show the conversion beside the price, in place of it, or only when you
 >   point at a price — whichever reads best to you.
+> • Leave a site alone with one click — the whole site, every page and
+>   subdomain of it — and bring it back as easily.
 > • Works on any site — supermarkets, marketplaces, listings, news.
 > • Understands currency symbols and ISO codes on either side of the number
 >   ($5, 5 USD, €5, 5 €, Gs 23.000, ₽500), and the codes shops write instead of
@@ -114,13 +116,14 @@ prepared in this file.
 > browser:
 >
 > 1. The user's settings: the target currency, where the conversion is shown,
->    what a bare "$" should mean, and whether conversion is switched on.
+>    what a bare "$" should mean, whether conversion is switched on, and the
+>    sites the user excluded, by site name only.
 > 2. A cache of the exchange-rate table, so the extension does not refetch rates
 >    on every page load. It is refreshed at most every six hours.
 > 3. The list of pages the user marked with "It didn't work here", so they can
 >    review, copy or clear it in the popup. It holds the page address, what the
 >    extension detected, and a few price-shaped strings it failed to convert.
-> 4. Nothing else.
+> 4. Nothing else — no browsing history, no page content.
 >
 > All of it stays in the user's own browser profile. None of it is transmitted,
 > and the extension has no server or account to transmit it to.

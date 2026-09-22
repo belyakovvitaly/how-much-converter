@@ -98,7 +98,25 @@ summary {
   margin-bottom: 8px;
 }
 
-#reportItems {
+/* Sites the reader switched it off for. Held in chrome.storage.local with the
+   other settings, so like them it stays in this browser profile. */
+.sites {
+  margin-bottom: 10px;
+}
+
+.sites .row {
+  margin-bottom: 6px;
+}
+
+/* A long hostname gives way to the button, not the other way round. */
+.row > .site-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list {
   margin: 0 0 8px;
   padding: 0;
   list-style: none;
@@ -107,13 +125,13 @@ summary {
   font-size: 11px;
 }
 
-#reportItems li {
+.list li {
   padding: 5px 0;
   border-top: 1px solid var(--border);
   word-break: break-all;
 }
 
-#reportItems .when {
+.list .when {
   color: var(--muted);
 }
 
@@ -122,6 +140,20 @@ summary {
   font-weight: normal;
   color: #888;
   vertical-align: middle;
+}
+
+#excludedItems li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+#excludedItems button {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  font-size: 11px;
 }
 
 .note {

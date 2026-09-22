@@ -16,6 +16,7 @@
     parseAmount,
     formatConverted,
     detectPageCurrency,
+    siteOf,
     collapsePriceText,
     matchIsOnOneLine,
   } = self.HMC;
@@ -44,12 +45,23 @@
     // Where the conversion goes: "beside" the price, "replace" it, or shown on
     // "hover" only.
     display: "beside",
+    // Sites, as siteOf names them, the reader asked to be left alone.
+    excludedSites: [],
   };
   let rates = null; // { base, rates: { USD: 1, ... } }
   let observer = null;
   let pageCurrency = null; // what "$" or "¥" means *here*; null = unknown
 
   const RE = buildPriceRegExp();
+
+  // This page's site, once: it is what the exclusion list holds.
+  const SITE = siteOf(location.hostname);
+
+  // Switched on, and not on a site the reader switched it off for.
+  function active() {
+    const excluded = Array.isArray(settings.excludedSites) && settings.excludedSites.includes(SITE);
+    return settings.enabled && !excluded;
+  }
 
   // An ISO code, but only one we hold a rate for: "USD" is a currency here,
   // "EUR" is, "SKU" is not.
@@ -259,7 +271,7 @@
   }
 
   function walk(root, size, notes) {
-    if (!rates || !settings.enabled) return;
+    if (!rates || !active()) return;
 
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
@@ -435,7 +447,7 @@
   // Runs both passes, then drops the mutation records our own edits produced so
   // the observer does not treat them as a page change and loop forever.
   function apply(root = document.body) {
-    if (!rates || !settings.enabled) return;
+    if (!rates || !active()) return;
     const size = noteSize();
     const notes = [];
     walk(root, size, notes);
@@ -490,6 +502,7 @@
       "targetCurrency",
       "dollarAssumption",
       "display",
+      "excludedSites",
     ]);
     settings = { ...settings, ...stored };
     if (settings.enabled === undefined) settings.enabled = true;
@@ -521,14 +534,15 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     let touched = false;
-    for (const key of ["enabled", "targetCurrency", "dollarAssumption", "display"]) {
+    const keys = ["enabled", "targetCurrency", "dollarAssumption", "display", "excludedSites"];
+    for (const key of keys) {
       if (changes[key]) {
         settings[key] = changes[key].newValue;
         touched = true;
       }
     }
     if (!touched) return;
-    if (settings.enabled) rescan();
+    if (active()) rescan();
     else unwrapAll();
   });
 

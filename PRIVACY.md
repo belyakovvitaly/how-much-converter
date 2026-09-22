@@ -10,7 +10,8 @@ accounts, analytics, or trackers.
 ## What is stored, and where
 
 Your settings — the target currency, where the conversion is shown, what a bare
-`$` should mean, and whether conversion is on — and a cached table of exchange
+`$` should mean, and whether conversion is on — the sites you excluded, by name
+only (`mercadolibre.com.ar`, not a page address), and a cached table of exchange
 rates. All of it lives in `chrome.storage.local`, on your own machine. It is
 never uploaded, and it is deleted when you remove the extension.
 

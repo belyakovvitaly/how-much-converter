@@ -27,7 +27,9 @@ STUB='<script>
                sendMessage: (m, cb) => cb({ ok: true, cache: { base: "USD", fetchedAt: Date.now(),
                rates: { USD: 1, UYU: 40.1, PYG: 7300, EUR: 0.921, BRL: 5.42, CHF: 0.879 } } }),
                onMessage: { addListener() {} } },
-    tabs: { query: async () => [{ id: 1 }], sendMessage: async () => null, create() {} },
+    tabs: { query: async () => [{ id: 1 }], create() {},
+            // The demo shop, at a name reserved for examples.
+            sendMessage: async () => ({ url: "https://www.mercado.example/" }) },
   };
 </script>'
 

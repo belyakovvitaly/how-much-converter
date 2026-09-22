@@ -292,6 +292,29 @@ function flagFor(code) {
   return String.fromCodePoint(base + country.charCodeAt(0), base + country.charCodeAt(1));
 }
 
+// The site a hostname belongs to, as a person would name it: the part a shop
+// registered, without the subdomains it hangs pages off. "Exclude this site" on
+// articulo.mercadolibre.com.ar has to mean www.mercadolibre.com.ar as well.
+//
+// Without the Public Suffix List this is a rule of thumb, and it covers the
+// case that matters: a country's generic second level (com.ar, co.uk, com.br,
+// co.jp) takes three labels, anything else two. An address or a single-label
+// host is its own site.
+const SECOND_LEVELS = new Set([
+  "ac", "co", "com", "edu", "gob", "gov", "go", "ltd", "mil", "ne", "net",
+  "nom", "or", "org", "plc",
+]);
+
+function siteOf(hostname) {
+  const host = String(hostname || "").toLowerCase().replace(/\.$/, "");
+  if (!host.includes(".") || /^[\d.]+$/.test(host) || host.includes(":")) return host;
+  const labels = host.split(".");
+  const tld = labels[labels.length - 1];
+  const second = labels[labels.length - 2];
+  const keep = labels.length > 2 && tld.length === 2 && SECOND_LEVELS.has(second) ? 3 : 2;
+  return labels.slice(-keep).join(".");
+}
+
 // The last label of a hostname: "falabella.com.pe" -> PEN, "takealot.com" -> null.
 function currencyFromHostname(hostname) {
   const tld = String(hostname || "").toLowerCase().split(".").pop();
@@ -705,6 +728,7 @@ if (typeof self !== "undefined") {
     formatConverted,
     currencyFromHostname,
     currencyFromLang,
+    siteOf,
     flagFor,
     currencyFromMarkup,
     detectPageCurrency,

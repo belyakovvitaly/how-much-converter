@@ -203,6 +203,13 @@
           hover(document.getElementById("nothing"));
           check("pointing away hides it", !tipShown());
 
+          lines.push("", "A site left alone:");
+          await set("excludedSites", ["127.0.0.1"]);
+          check("excluded: the page is exactly as it came", page.innerHTML === window.__pristine);
+          check("…and nothing shows on hover", !page.querySelector("[data-hmc-tip]"));
+          await set("excludedSites", ["example.com"]);
+          check("another site excluded: converted again", marked() === beside, `${marked()} of ${beside}`);
+
           lines.push("", "Back, and off:");
           await set("display", "beside");
           check("beside again, as at first", conv("ml") && conv("ml").includes("$22.62") &&

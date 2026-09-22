@@ -13,6 +13,17 @@
       <span>Convert prices on pages</span>
     </label>
 
+    <div class="sites">
+      <div class="row" id="site" hidden>
+        <span class="site-name"><span id="siteState"></span> <strong id="siteName"></strong></span>
+        <button id="siteToggle" type="button"></button>
+      </div>
+      <details id="excludedList" hidden>
+        <summary><span id="excludedCount"></span></summary>
+        <ul id="excludedItems" class="list"></ul>
+      </details>
+    </div>
+
     <label class="row">
       <span>Convert to</span>
       <select id="targetCurrency"></select>
@@ -50,7 +61,7 @@
 
       <details id="reportList" hidden>
         <summary><span id="reportCount"></span></summary>
-        <ul id="reportItems"></ul>
+        <ul id="reportItems" class="list"></ul>
         <div class="row">
           <button id="copyReports" type="button">Copy</button>
           <button id="issueReports" type="button">Report on GitHub</button>

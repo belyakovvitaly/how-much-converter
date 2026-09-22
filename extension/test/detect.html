@@ -113,6 +113,18 @@
           ["currencyFromHostname, empty", () => H.currencyFromHostname(""), null],
           ["currencyFromLang, uppercase region", () => H.currencyFromLang("EN-ZA"), "ZAR"],
           ["currencyFromLang, empty", () => H.currencyFromLang(""), null],
+
+          // --- which site a page belongs to, for excluding one ---
+          ["siteOf, a subdomain", () => H.siteOf("articulo.mercadolibre.com.ar"), "mercadolibre.com.ar"],
+          ["siteOf, www under a country's com", () => H.siteOf("www.mercadolibre.com.ar"), "mercadolibre.com.ar"],
+          ["siteOf, co.uk", () => H.siteOf("www.argos.co.uk"), "argos.co.uk"],
+          ["siteOf, a plain .com", () => H.siteOf("smile.amazon.com"), "amazon.com"],
+          ["siteOf, a bare ccTLD", () => H.siteOf("www.alza.cz"), "alza.cz"],
+          ["siteOf, a brand under a ccTLD", () => H.siteOf("shop.ikea.se"), "ikea.se"],
+          ["siteOf, already a site", () => H.siteOf("stock.com.py"), "stock.com.py"],
+          ["siteOf, an address", () => H.siteOf("127.0.0.1"), "127.0.0.1"],
+          ["siteOf, localhost", () => H.siteOf("localhost"), "localhost"],
+          ["siteOf, a file has no site", () => H.siteOf(""), ""],
         ];
 
         let fail = 0;
