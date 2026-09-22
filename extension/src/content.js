@@ -60,16 +60,77 @@
     return (amount / from) * dest;
   }
 
-  function conversionNode(converted) {
+  // The conversion is a note on a price, not a second price. Appended inside a
+  // shop's price element it inherits that element's display size, and on
+  // mercadolibre.com.ar — 32px digits in a flex row that does not wrap — the
+  // note then had no room and broke in the middle: "(≈" on one line, "14,99 $)"
+  // on the next. So it is never broken inside, and never set larger than the
+  // page's ordinary text; a price in running text is that size anyway and looks
+  // the same as before.
+  const NOTE_MIN_PX = 12;
+  const NOTE_MAX_PX = 16;
+  // The last size tried before a note that still does not fit is let wrap.
+  const NOTE_TIGHT_PX = 11;
+
+  function noteSize() {
+    const body = parseFloat(getComputedStyle(document.body).fontSize);
+    if (!Number.isFinite(body)) return NOTE_MAX_PX;
+    return Math.min(NOTE_MAX_PX, Math.max(NOTE_MIN_PX, body));
+  }
+
+  function conversionNode(converted, size) {
     const conv = document.createElement("span");
     conv.className = CONV_CLASS;
-    conv.textContent = ` (≈ ${formatConverted(converted, settings.targetCurrency)})`;
+    conv.style.fontSize = `min(1em, ${size}px)`;
+    // The space stays outside the unbreakable part, so running text can still
+    // wrap between the price and its note.
+    const text = document.createElement("span");
+    text.style.whiteSpace = "nowrap";
+    text.textContent = `(≈ ${formatConverted(converted, settings.targetCurrency)})`;
+    conv.append(" ", text);
     return conv;
+  }
+
+  // How far up to look for the box a note has to fit in. The price element
+  // itself is no use: in a flex row it grows to hold whatever is put in it. The
+  // card around it does not, and that is two or three levels up.
+  const FIT_ANCESTORS = 4;
+
+  function overflows(conv) {
+    const r = conv.getBoundingClientRect();
+    // Not drawn: an off-screen screen-reader copy, say. Nothing to fit.
+    if (r.width <= 1 || r.height <= 1) return false;
+    let el = conv.parentElement;
+    for (let i = 0; el && el !== document.body && i < FIT_ANCESTORS; i++) {
+      if (r.right > el.getBoundingClientRect().right + 0.5) return true;
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  // Where a note still does not fit — the narrowest cards — it is made smaller
+  // once more, and only then allowed to wrap, as it always used to. Every step
+  // measures all the notes first and writes afterwards, so the page is laid out
+  // once per step rather than once per price.
+  function fitNotes(notes) {
+    // Inside a flex or grid row the leading space collapses away and the note
+    // is drawn touching the digits: "22.619(≈". A margin does what the space
+    // cannot there.
+    const spaced = notes.filter((conv) => {
+      const display = getComputedStyle(conv.parentElement).display;
+      return /flex|grid/.test(display);
+    });
+    for (const conv of spaced) conv.style.marginInlineStart = "0.25em";
+
+    let tight = notes.filter(overflows);
+    for (const conv of tight) conv.style.fontSize = `min(1em, ${NOTE_TIGHT_PX}px)`;
+    tight = tight.filter(overflows);
+    for (const conv of tight) conv.lastChild.style.whiteSpace = "normal";
   }
 
   // Replaces the matched slice of a text node with a wrapper element that keeps
   // the original text and adds the converted value.
-  function annotateNode(node) {
+  function annotateNode(node, size, notes) {
     const text = node.nodeValue;
     RE.lastIndex = 0;
     let match;
@@ -91,7 +152,9 @@
       wrap.className = WRAP_CLASS;
       wrap.appendChild(document.createTextNode(full));
 
-      wrap.appendChild(conversionNode(converted));
+      const conv = conversionNode(converted, size);
+      wrap.appendChild(conv);
+      notes.push(conv);
 
       pieces.push(wrap);
       cursor = match.index + full.length;
@@ -115,7 +178,7 @@
     return Boolean(el.closest(`${SKIP_SELECTOR},.${WRAP_CLASS},.${CONV_CLASS}`));
   }
 
-  function walk(root) {
+  function walk(root, size, notes) {
     if (!rates || !settings.enabled) return;
 
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -132,7 +195,7 @@
     const targets = [];
     let n;
     while ((n = walker.nextNode())) targets.push(n);
-    targets.forEach(annotateNode);
+    for (const t of targets) annotateNode(t, size, notes);
   }
 
   // A split price lives in a small element: a handful of nodes holding one
@@ -148,7 +211,7 @@
   // node contains on its own — <span>Gs</span><span>23.000</span>, or a number
   // followed by a currency in a nested span. The price need not be the whole
   // text: shops append units to it ("340 руб/шт").
-  function annotateSplit(root) {
+  function annotateSplit(root, size, notes) {
     // Reverse document order puts descendants before their ancestors, so the
     // innermost element around a price claims it and the outer ones then find
     // it taken and leave it alone.
@@ -194,7 +257,9 @@
     // that reading innerText — which forces layout — never lands between two
     // edits and makes the browser re-lay-out the page for each one.
     for (const [el, converted] of pending) {
-      el.appendChild(conversionNode(converted));
+      const conv = conversionNode(converted, size);
+      el.appendChild(conv);
+      notes.push(conv);
     }
   }
 
@@ -241,8 +306,11 @@
   // the observer does not treat them as a page change and loop forever.
   function apply(root = document.body) {
     if (!rates || !settings.enabled) return;
-    walk(root);
-    annotateSplit(root);
+    const size = noteSize();
+    const notes = [];
+    walk(root, size, notes);
+    annotateSplit(root, size, notes);
+    fitNotes(notes);
     if (observer) observer.takeRecords();
   }
 
