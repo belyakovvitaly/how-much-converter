@@ -45,6 +45,17 @@ inline = demo.replace("  </body>", f'''    {stub}
     <script src="/extension/src/content.js"></script>
   </body>''')
 (tmp / "inline.html").write_text(inline, encoding="utf-8")
+# "When pointed at": the same page with the setting on, and a price pointed at.
+# Headless has no pointer, so the script sends the mouseover a real one would.
+(tmp / "hover.html").write_text(
+    inline.replace('dollarAssumption: "UYU",', 'dollarAssumption: "UYU", display: "hover",')
+          .replace("  </body>", """    <script>
+      setTimeout(() => {
+        const price = document.querySelector("[data-hmc-tip]");
+        price.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      }, 1500);
+    </script>
+  </body>"""), encoding="utf-8")
 (tmp / "popup.html").write_text(inline.replace("  </body>", '''    <style>
       #shot-popup { position: fixed; top: 14px; right: 22px; width: 368px; height: 243px;
         border: 0; border-radius: 12px; background: #fff; z-index: 9999;
@@ -75,7 +86,7 @@ python3 -m http.server "$PORT" --bind 127.0.0.1 >/dev/null 2>&1 &
 SERVER=$!
 until curl -sf "http://127.0.0.1:$PORT/extension/manifest.json" >/dev/null; do sleep 0.2; done
 
-for name in inline popup; do
+for name in inline hover popup; do
   raw="$TMP/$name.png"
   # Headless Chrome does not always exit after --screenshot, so wait on the file.
   "$CHROME" --headless=new --disable-gpu --hide-scrollbars --no-first-run \

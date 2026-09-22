@@ -22,6 +22,11 @@ which names no currency at all.
 
 ![Converted prices on a shop page](docs/screenshot-inline.png)
 
+When pointed at, the page keeps its own prices, underlined where there is a
+conversion to show:
+
+![A conversion shown on hover](docs/screenshot-hover.png)
+
 The popup picks the target currency and where the conversion goes, and can
 settle what a bare `$` means —
 though by default it works that out from the page itself, since much of Latin

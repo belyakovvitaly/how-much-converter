@@ -160,8 +160,9 @@ endpoint reads as an omission about the broader one.
 
 - **Screenshots** — ready, at the required 1280×800:
   [`docs/screenshot-inline.png`](docs/screenshot-inline.png) (conversions on a
-  page) and [`docs/screenshot-popup.png`](docs/screenshot-popup.png) (the
-  popup). Regenerate with `./tools/screenshots.sh`.
+  page), [`docs/screenshot-hover.png`](docs/screenshot-hover.png) (the same
+  page, a conversion shown on hover) and
+  [`docs/screenshot-popup.png`](docs/screenshot-popup.png) (the popup). Regenerate with `./tools/screenshots.sh`.
 - **Icon** — the 128×128 the listing needs is in `extension/icons/`.
 - **Small promo tile** — 440×280 PNG, still missing. Optional, and only needed
   to be eligible for store promotion.
