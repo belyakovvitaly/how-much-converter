@@ -19,6 +19,13 @@
       #page .pricebox { display: flex; align-items: baseline; }
       #page .pricebox .big { font-size: 24px; }
       #page .pricebox sup { font-size: 12px; vertical-align: super; }
+      /* How lenta.com sets a price: kopecks a smaller span at the top of a flex
+         row, raised by neither <sup> nor vertical-align. */
+      #page .lenta { display: flex; font-size: 24px; }
+      #page .lenta .kop { font-size: 14px; }
+      /* The same smaller number, but sitting on the baseline: not raised. */
+      #page .onbase { display: flex; align-items: baseline; font-size: 24px; }
+      #page .onbase .kop { font-size: 14px; }
       #page .sr { position: absolute; width: 1px; height: 1px; overflow: hidden;
         clip-path: inset(50%); white-space: nowrap; }
     </style>
@@ -37,13 +44,15 @@
       <p id="euro">Import price: €10,00</p>
       <div class="row" id="filter"><span>4 000+ kr</span><span class="sr">126 produkter</span><span>126</span></div>
       <div id="raised" class="pricebox"><div class="big">189</div><sup>99</sup><div>RSD</div></div>
+      <div id="lenta" class="lenta"><span>209</span><span class="kop">99</span><span>₽</span></div>
+      <div id="onbase" class="onbase"><span>209</span><span class="kop">99</span><span>₽</span></div>
       <p id="nothing">42 items in stock</p>
       <p id="unknown">Code 500 USDT</p>
     </div>
 
     <script>
       // Everything content.js needs from the extension API, and nothing else.
-      const RATES = { base: "USD", rates: { USD: 1, ARS: 1000, EUR: 0.9, SEK: 10, RSD: 100 } };
+      const RATES = { base: "USD", rates: { USD: 1, ARS: 1000, EUR: 0.9, SEK: 10, RSD: 100, RUB: 100 } };
       window.chrome = {
         storage: {
           local: {
@@ -76,6 +85,11 @@
           // what the markup says before the separator is put back — it would be
           // $189.99, so the amount is the whole point of this one.
           ["a minor unit raised into a <sup> (maxi.rs)", "raised", true, "1.90"],
+          // 209,99 ₽ at 100 to the dollar is $2.10; run together it is $210.
+          ["kopecks raised by a flex row alone (lenta.com)", "lenta", true, "$2.10"],
+          // Smaller but on the baseline is not a superscript, and nothing says
+          // where the separator goes: the digits are read as they stand.
+          ["a smaller number on the same baseline", "onbase", true, "$210"],
           ["a filter label run into a hidden count (ikea.com/se)", "filter", false],
           ["a number that is not a price", "nothing", false],
           ["a ticker that is not a currency", "unknown", false],

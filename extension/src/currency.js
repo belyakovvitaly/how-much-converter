@@ -400,13 +400,40 @@ function currencyFromMarkup(doc, isKnownCode) {
 // decimal point: maxi.rs writes <div>189</div><sup>99</sup><div>RSD</div> for
 // 189,99 RSD, and reading that as text gives "18999RSD" — a hundred times the
 // real price. Where the digits are raised, the separator is put back.
-function isRaisedMinorUnit(node) {
+//
+// Raised is a matter of how it is drawn, not of which markup did it. lenta.com
+// uses neither <sup> nor vertical-align: its kopecks are a smaller span in a
+// flex row, pinned to the top of the roubles beside them — "209" and "99" and
+// "₽", read as 20999 ₽. So where the style says nothing, measure: a minor unit
+// set small and ending well above the bottom of the digits before it is raised,
+// whatever raised it. A smaller number sitting on the same baseline ends within
+// a few pixels of it — the gap is only the difference in descent — and is left
+// alone.
+function isRaisedMinorUnit(node, before) {
   const parent = node.parentElement;
   if (!parent) return false;
   if (!/^\d{1,2}$/.test(node.nodeValue.trim())) return false;
   if (parent.tagName === "SUP") return true;
   const view = parent.ownerDocument.defaultView;
-  return view ? view.getComputedStyle(parent).verticalAlign === "super" : false;
+  if (view && view.getComputedStyle(parent).verticalAlign === "super") return true;
+  if (!before) return false;
+
+  const minor = textRect(node);
+  const whole = textRect(before);
+  if (minor.height <= 1 || whole.height <= 1) return false;
+  // Measured on lenta.com: the kopecks end 0.43 of the roubles' height above
+  // their bottom on the main price and 0.36 on the struck-out one, while a
+  // baseline-aligned smaller number ends within 0.1. A quarter sits between.
+  return (
+    minor.height < whole.height * 0.8 &&
+    whole.bottom - minor.bottom > whole.height * 0.25
+  );
+}
+
+function textRect(node) {
+  const range = node.ownerDocument.createRange();
+  range.selectNodeContents(node);
+  return range.getBoundingClientRect();
 }
 
 // Collapses whitespace the way the scan does, while keeping, for every
@@ -415,6 +442,9 @@ function collapsePriceText(el) {
   const map = [];
   let text = "";
   let pendingSpace = false;
+  // The text node the last character came from: what a raised minor unit is
+  // measured against.
+  let lastNode = null;
 
   const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT);
   let node;
@@ -423,7 +453,7 @@ function collapsePriceText(el) {
 
     // Only right after the whole part of a number, so a footnote marker or an
     // exponent elsewhere in the text is left alone.
-    if (/\d$/.test(text) && !pendingSpace && isRaisedMinorUnit(node)) {
+    if (/\d$/.test(text) && !pendingSpace && isRaisedMinorUnit(node, lastNode)) {
       text += ",";
       map.push({ node, offset: value.search(/\S/) });
     }
@@ -441,6 +471,7 @@ function collapsePriceText(el) {
       }
       text += value[i];
       map.push({ node, offset: i });
+      lastNode = node;
     }
   }
   return { text, map };
