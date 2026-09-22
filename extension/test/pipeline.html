@@ -26,6 +26,11 @@
       /* The same smaller number, but sitting on the baseline: not raised. */
       #page .onbase { display: flex; align-items: baseline; font-size: 24px; }
       #page .onbase .kop { font-size: 14px; }
+      /* How amazon.com.br sets a price: symbol and cents a smaller size, lifted
+         by position:relative, the comma an empty absolutely-placed span. */
+      #page .amz { font-size: 18px; }
+      #page .amz .up { font-size: 10px; position: relative; top: -5px; }
+      #page .amz .dec { position: absolute; }
       #page .sr { position: absolute; width: 1px; height: 1px; overflow: hidden;
         clip-path: inset(50%); white-space: nowrap; }
     </style>
@@ -46,13 +51,14 @@
       <div id="raised" class="pricebox"><div class="big">189</div><sup>99</sup><div>RSD</div></div>
       <div id="lenta" class="lenta"><span>209</span><span class="kop">99</span><span>₽</span></div>
       <div id="onbase" class="onbase"><span>209</span><span class="kop">99</span><span>₽</span></div>
+      <div id="amazon"><span class="amz"><span class="up">R$</span><span>312<span class="dec"></span></span><span class="up">00</span></span></div>
       <p id="nothing">42 items in stock</p>
       <p id="unknown">Code 500 USDT</p>
     </div>
 
     <script>
       // Everything content.js needs from the extension API, and nothing else.
-      const RATES = { base: "USD", rates: { USD: 1, ARS: 1000, EUR: 0.9, SEK: 10, RSD: 100, RUB: 100 } };
+      const RATES = { base: "USD", rates: { USD: 1, ARS: 1000, EUR: 0.9, SEK: 10, RSD: 100, RUB: 100, BRL: 5 } };
       window.chrome = {
         storage: {
           local: {
@@ -90,6 +96,8 @@
           // Smaller but on the baseline is not a superscript, and nothing says
           // where the separator goes: the digits are read as they stand.
           ["a smaller number on the same baseline", "onbase", true, "$210"],
+          // R$ 312,00 at 5 to the dollar is $62.40; run together it is $6,240.
+          ["cents lifted by position:relative (amazon.com.br)", "amazon", true, "$62.40"],
           ["a filter label run into a hidden count (ikea.com/se)", "filter", false],
           ["a number that is not a price", "nothing", false],
           ["a ticker that is not a currency", "unknown", false],
