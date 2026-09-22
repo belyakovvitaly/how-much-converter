@@ -38,6 +38,7 @@ import sys, pathlib
 tmp, stub = pathlib.Path(sys.argv[1]), sys.argv[2].replace("__VERSION__", sys.argv[3])
 demo = pathlib.Path("extension/test/demo.html").read_text(encoding="utf-8")
 inline = demo.replace("  </body>", f'''    {stub}
+    <link rel="stylesheet" href="/extension/src/content.css">
     <script src="/extension/src/currency.js"></script>
     <script src="/extension/src/content.js"></script>
   </body>''')

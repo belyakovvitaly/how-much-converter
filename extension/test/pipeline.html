@@ -6,6 +6,7 @@
     <script type="application/ld+json">
       {"@type": "Offer", "priceCurrency": "ARS", "price": "399999"}
     </script>
+    <link rel="stylesheet" href="../src/content.css" />
     <style>
       body { font: 14px/1.5 ui-monospace, monospace; max-width: 64em; margin: 2em auto; }
       .fail { color: #b00; font-weight: bold; }
@@ -67,6 +68,8 @@
     </div>
 
     <script>
+      // The page as the shop sent it, to hold the extension to putting it back.
+      window.__pristine = document.getElementById("page").innerHTML;
       // Everything content.js needs from the extension API, and nothing else.
       const RATES = { base: "USD", rates: { USD: 1, ARS: 1000, EUR: 0.9, SEK: 10, RSD: 100, RUB: 100, BRL: 5 } };
       window.chrome = {
@@ -74,7 +77,8 @@
           local: {
             get: async () => ({ enabled: true, targetCurrency: "USD", dollarAssumption: "auto" }),
           },
-          onChanged: { addListener() {} },
+          // Kept, so the test can change a setting the way the popup does.
+          onChanged: { addListener(fn) { window.__onChanged = fn; } },
         },
         runtime: {
           sendMessage: (msg, cb) => cb({ ok: true, cache: RATES }),
@@ -137,22 +141,78 @@
               getComputedStyle(document.getElementById("plain")).fontSize],
         ];
 
-        function report() {
-          let fail = 0;
-          const lines = cases.map(([name, id, want, mustSay]) => {
+        const lines = [];
+        let fail = 0;
+        function check(name, ok, got = "") {
+          ok = Boolean(ok);
+          if (!ok) fail++;
+          lines.push(`${ok ? "ok  " : "FAIL"}  ${name.padEnd(62, " ")} ${got}`);
+        }
+
+        const page = document.getElementById("page");
+        const shown = (id) => document.getElementById(id).innerText.replace(/\s+/g, " ").trim();
+        const marked = () => page.querySelectorAll("[data-hmc]").length;
+        const tip = () => document.querySelector("hmc-tip");
+        const tipShown = () => tip() && !tip().hidden && getComputedStyle(tip()).display !== "none";
+        const hover = (el) => el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+        // As the popup does it: a storage change, then the content script's own
+        // debounce before it redraws.
+        async function set(key, value) {
+          window.__onChanged({ [key]: { newValue: value } }, "local");
+          await wait(600);
+        }
+
+        async function run() {
+          for (const [name, id, want, mustSay] of cases) {
             const got = conv(id);
             let ok = want === (got !== null);
             if (ok && mustSay && !String(got).includes(mustSay)) ok = false;
-            if (!ok) fail++;
-            return `${ok ? "ok  " : "FAIL"}  ${name.padEnd(48, " ")} ${got === null ? "(not converted)" : got}` +
-              (ok ? "" : `   (expected ${want ? mustSay || "a conversion" : "none"})`);
-          });
-          for (const [name, check] of layout) {
-            const ok = Boolean(check());
-            if (!ok) fail++;
-            lines.push(`${ok ? "ok  " : "FAIL"}  ${name}`);
+            check(name, ok, (got === null ? "(not converted)" : got) +
+              (ok ? "" : `   (expected ${want ? mustSay || "a conversion" : "none"})`));
           }
-          const total = cases.length + layout.length;
+          for (const [name, test] of layout) check(name, test());
+          const beside = marked();
+
+          lines.push("", "Instead of the price:");
+          await set("display", "replace");
+          check("the same prices are converted", marked() === beside, `${marked()} of ${beside}`);
+          check("a price in running text shows only its conversion",
+            !shown("plain").includes("1.234") && shown("plain").includes("≈"), shown("plain"));
+          check("a split price shows only its conversion",
+            !shown("ml").includes("22.619") && shown("ml").includes("22.62"), shown("ml"));
+          check("…at the price's own size, not a note's", size("ml") === 32, `${size("ml")}px`);
+          check("…with no brackets", !shown("ml").includes("("), shown("ml"));
+          check("the original is in its title", note("ml").title.includes("22.619"), note("ml").title);
+          check("…and kopecks read right hold here too", shown("lenta").includes("$2.10"), shown("lenta"));
+          check("nothing unconverted is hidden", shown("nothing") === "42 items in stock", shown("nothing"));
+
+          lines.push("", "When pointed at:");
+          await set("display", "hover");
+          check("the same prices are converted", marked() === beside, `${marked()} of ${beside}`);
+          check("no conversion is drawn in the page", !page.querySelector(".hmc-conv"));
+          check("the prices read as they did", shown("plain") === "Precio: $ 1.234", shown("plain"));
+          hover(page.querySelector("#plain [data-hmc-tip]"));
+          check("pointing at a price shows its conversion",
+            tipShown() && tip().textContent.includes("$1.23"), tip() && tip().textContent);
+          // The pointer lands on a child of the shop's element, not the element.
+          hover(page.querySelector("#ml span:last-child"));
+          check("…a split one too, from any part of it",
+            tipShown() && tip().textContent.includes("$22.62"), tip() && tip().textContent);
+          hover(document.getElementById("nothing"));
+          check("pointing away hides it", !tipShown());
+
+          lines.push("", "Back, and off:");
+          await set("display", "beside");
+          check("beside again, as at first", conv("ml") && conv("ml").includes("$22.62") &&
+            size("ml") === 14 && marked() === beside, conv("ml"));
+          await set("display", "replace");
+          await set("enabled", false);
+          check("off after hiding: the page is exactly as it came",
+            page.innerHTML === window.__pristine);
+
+          const total = lines.filter((l) => /^(ok|FAIL)/.test(l)).length;
           document.getElementById("out").textContent = lines.join("\n");
           const summary = document.getElementById("summary");
           summary.textContent = `${total - fail} ok, ${fail} fail`;
@@ -177,7 +237,10 @@
         });
 
         // content.js starts itself asynchronously; give it a turn or two.
-        setTimeout(report, 300);
+        setTimeout(() => run().catch((e) => {
+          document.getElementById("out").textContent = `FAIL  the test threw: ${e.message}`;
+          document.getElementById("summary").textContent = "0 ok, 1 fail";
+        }), 300);
       })();
     </script>
   </body>

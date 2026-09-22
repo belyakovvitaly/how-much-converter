@@ -1,4 +1,5 @@
-// Content script: finds prices in the page and appends a converted value.
+// Content script: finds prices in the page and shows each one converted —
+// beside it, in its place, or on hover, as the popup says.
 //
 // Best-effort, v1: it recognizes common currency symbols and ISO codes placed
 // directly before or after a number. Ambiguous "$" is treated according to the
@@ -21,6 +22,17 @@
 
   const WRAP_CLASS = "hmc-wrap";
   const CONV_CLASS = "hmc-conv";
+  // The shop's own text, lifted into an element of ours so it can be hidden.
+  const ORIG_CLASS = "hmc-orig";
+  // On every converted price, whatever the display: what it converts to. This
+  // is how a price is known to be taken, counted, and shown on hover.
+  const HOST_ATTR = "data-hmc";
+  const MARKED = `[${HOST_ATTR}]`;
+  // "On hover": a price that shows its conversion when pointed at.
+  const TIP_ATTR = "data-hmc-tip";
+  // "Instead of the price": the shop's own price, hidden by content.css.
+  const HIDDEN_ATTR = "data-hmc-hidden";
+  const DISPLAYS = new Set(["beside", "replace", "hover"]);
   const SKIP_TAGS = new Set([
     "SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "CODE", "PRE", "KBD",
   ]);
@@ -29,6 +41,9 @@
     enabled: true,
     targetCurrency: "USD",
     dollarAssumption: "auto",
+    // Where the conversion goes: "beside" the price, "replace" it, or shown on
+    // "hover" only.
+    display: "beside",
   };
   let rates = null; // { base, rates: { USD: 1, ... } }
   let observer = null;
@@ -78,17 +93,79 @@
     return Math.min(NOTE_MAX_PX, Math.max(NOTE_MIN_PX, body));
   }
 
-  function conversionNode(converted, size) {
+  function display() {
+    return DISPLAYS.has(settings.display) ? settings.display : "beside";
+  }
+
+  function label(converted) {
+    return `≈ ${formatConverted(converted, settings.targetCurrency)}`;
+  }
+
+  function conversionNode(text, size) {
     const conv = document.createElement("span");
     conv.className = CONV_CLASS;
     conv.style.fontSize = `min(1em, ${size}px)`;
     // The space stays outside the unbreakable part, so running text can still
     // wrap between the price and its note.
-    const text = document.createElement("span");
-    text.style.whiteSpace = "nowrap";
-    text.textContent = `(≈ ${formatConverted(converted, settings.targetCurrency)})`;
-    conv.append(" ", text);
+    const note = document.createElement("span");
+    note.style.whiteSpace = "nowrap";
+    note.textContent = `(${text})`;
+    conv.append(" ", note);
     return conv;
+  }
+
+  // In place of the price, the conversion is the price: the shop's size, no
+  // brackets, and the original a hover away in its title.
+  function replacementNode(text, original) {
+    const conv = document.createElement("span");
+    conv.className = CONV_CLASS;
+    conv.title = original;
+    const inner = document.createElement("span");
+    inner.style.whiteSpace = "nowrap";
+    inner.textContent = text;
+    conv.append(inner);
+    return conv;
+  }
+
+  // Hides what an element shows without taking it out of the page: a shop's
+  // script may still hold its nodes and update them. Elements are hidden by
+  // attribute rather than inline style, which would overwrite the shop's own;
+  // bare text cannot be styled, so it is wrapped.
+  function hideContents(host) {
+    for (const child of [...host.childNodes]) {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        child.setAttribute(HIDDEN_ATTR, "");
+      } else if (child.nodeType === Node.TEXT_NODE && child.nodeValue.trim()) {
+        const orig = document.createElement("span");
+        orig.className = ORIG_CLASS;
+        orig.setAttribute(HIDDEN_ATTR, "");
+        child.replaceWith(orig);
+        orig.appendChild(child);
+      }
+    }
+  }
+
+  // Marks `host` — our wrapper around a price, or the shop's element holding a
+  // split one — as converted, and shows the conversion the way the settings
+  // ask. A split host may carry a unit after the price ("340 руб/шт"); in place
+  // of the price that goes too, since it is not ours to separate.
+  function annotate(host, converted, original, size, notes) {
+    const text = label(converted);
+    host.setAttribute(HOST_ATTR, text);
+    const mode = display();
+    if (mode === "hover") {
+      host.setAttribute(TIP_ATTR, "");
+      return;
+    }
+    let conv;
+    if (mode === "replace") {
+      hideContents(host);
+      conv = replacementNode(text, original);
+    } else {
+      conv = conversionNode(text, size);
+    }
+    host.appendChild(conv);
+    notes.push(conv);
   }
 
   // How far up to look for the box a note has to fit in. The price element
@@ -113,6 +190,12 @@
   // measures all the notes first and writes afterwards, so the page is laid out
   // once per step rather than once per price.
   function fitNotes(notes) {
+    // In place of the price there is no neighbour to space from, and the size
+    // is the price's own: all that is left is to let it wrap if it must.
+    if (display() === "replace") {
+      for (const conv of notes.filter(overflows)) conv.lastChild.style.whiteSpace = "normal";
+      return;
+    }
     // Inside a flex or grid row the leading space collapses away and the note
     // is drawn touching the digits: "22.619(≈". A margin does what the space
     // cannot there.
@@ -151,10 +234,7 @@
       const wrap = document.createElement("span");
       wrap.className = WRAP_CLASS;
       wrap.appendChild(document.createTextNode(full));
-
-      const conv = conversionNode(converted, size);
-      wrap.appendChild(conv);
-      notes.push(conv);
+      annotate(wrap, converted, full, size, notes);
 
       pieces.push(wrap);
       cursor = match.index + full.length;
@@ -175,7 +255,7 @@
     if (el.isContentEditable) return true;
     // `closest` rather than a tag test: a price inside <pre><span> is still
     // inside a <pre>, and our own markup must never be re-scanned.
-    return Boolean(el.closest(`${SKIP_SELECTOR},.${WRAP_CLASS},.${CONV_CLASS}`));
+    return Boolean(el.closest(`${SKIP_SELECTOR},.${WRAP_CLASS},.${CONV_CLASS},${MARKED}`));
   }
 
   function walk(root, size, notes) {
@@ -225,7 +305,7 @@
       if (el.getElementsByTagName("*").length > SPLIT_MAX_DESCENDANTS) continue;
       if (shouldSkip(el)) continue;
       // Taken by a descendant in this pass, or annotated by the first one.
-      if (claimed.has(el) || el.querySelector(`.${CONV_CLASS}`)) continue;
+      if (claimed.has(el) || el.querySelector(MARKED)) continue;
 
       // Cheap bound first: markup indentation inflates textContent, so the real
       // cap has to be measured after collapsing whitespace, not before.
@@ -249,17 +329,15 @@
         amount == null ? null : convert(amount, resolveCode(match[1] || match[4]));
       if (converted == null) continue;
 
-      pending.push([el, converted]);
+      pending.push([el, converted, match[0]]);
       for (let p = el; p; p = p.parentElement) claimed.add(p);
     }
 
     // Nothing above writes to the page. Everything that does happens here, so
     // that reading innerText — which forces layout — never lands between two
     // edits and makes the browser re-lay-out the page for each one.
-    for (const [el, converted] of pending) {
-      const conv = conversionNode(converted, size);
-      el.appendChild(conv);
-      notes.push(conv);
+    for (const [el, converted, original] of pending) {
+      annotate(el, converted, original, size, notes);
     }
   }
 
@@ -278,7 +356,7 @@
       if (el.getElementsByTagName("*").length > SPLIT_MAX_DESCENDANTS) continue;
       if (shouldSkip(el)) continue;
       // Already handled, here or in a child.
-      if (el.querySelector(`.${CONV_CLASS}`)) continue;
+      if (el.matches(MARKED) || el.querySelector(MARKED)) continue;
 
       const text = el.textContent.replace(/\s+/gu, " ").trim();
       if (text.length < 2 || text.length > SPLIT_MAX_TEXT) continue;
@@ -296,11 +374,63 @@
 
   // Undo every annotation so a settings change can be re-applied cleanly.
   function unwrapAll() {
+    hideTip();
     document.querySelectorAll(`.${CONV_CLASS}`).forEach((el) => el.remove());
     document.querySelectorAll(`.${WRAP_CLASS}`).forEach((wrap) => {
       wrap.replaceWith(document.createTextNode(wrap.textContent));
     });
+    // The shop's own text node goes back, not a copy of it.
+    document.querySelectorAll(`.${ORIG_CLASS}`).forEach((orig) => {
+      orig.replaceWith(...orig.childNodes);
+    });
+    for (const attr of [HOST_ATTR, TIP_ATTR, HIDDEN_ATTR]) {
+      document.querySelectorAll(`[${attr}]`).forEach((el) => el.removeAttribute(attr));
+    }
   }
+
+  // --- "On hover" -----------------------------------------------------------
+  //
+  // One tooltip for the whole page, made on first use and kept outside <body>,
+  // where the observer is not looking. It is our own element name, so a shop's
+  // stylesheet has no rule that reaches it; content.css draws it.
+  let tip = null;
+
+  function showTip(host) {
+    if (!tip) {
+      tip = document.createElement("hmc-tip");
+      tip.setAttribute("role", "tooltip");
+      document.documentElement.appendChild(tip);
+    }
+    tip.textContent = host.getAttribute(HOST_ATTR);
+    tip.hidden = false;
+    // Above the price, or below it where there is no room; never off screen.
+    const gap = 6;
+    const r = host.getBoundingClientRect();
+    const t = tip.getBoundingClientRect();
+    let top = r.top - t.height - gap;
+    if (top < gap) top = r.bottom + gap;
+    const left = Math.max(
+      gap,
+      Math.min(r.left + (r.width - t.width) / 2, innerWidth - t.width - gap)
+    );
+    tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  }
+
+  function hideTip() {
+    if (tip) tip.hidden = true;
+  }
+
+  document.addEventListener("mouseover", (e) => {
+    const host = e.target instanceof Element ? e.target.closest(`[${TIP_ATTR}]`) : null;
+    if (host) showTip(host);
+    else hideTip();
+  });
+  // Out of the window altogether.
+  document.addEventListener("mouseout", (e) => {
+    if (!e.relatedTarget) hideTip();
+  });
+  // It is placed once, against where the price was; a scroll leaves it behind.
+  addEventListener("scroll", hideTip, { capture: true, passive: true });
 
   // Runs both passes, then drops the mutation records our own edits produced so
   // the observer does not treat them as a page change and loop forever.
@@ -359,6 +489,7 @@
       "enabled",
       "targetCurrency",
       "dollarAssumption",
+      "display",
     ]);
     settings = { ...settings, ...stored };
     if (settings.enabled === undefined) settings.enabled = true;
@@ -380,7 +511,7 @@
       sendResponse({
         url: location.href,
         title: document.title,
-        converted: document.querySelectorAll(`.${CONV_CLASS}`).length,
+        converted: document.querySelectorAll(MARKED).length,
         currency: pageCurrency,
         missed: missedPrices(),
       });
@@ -390,7 +521,7 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     let touched = false;
-    for (const key of ["enabled", "targetCurrency", "dollarAssumption"]) {
+    for (const key of ["enabled", "targetCurrency", "dollarAssumption", "display"]) {
       if (changes[key]) {
         settings[key] = changes[key].newValue;
         touched = true;

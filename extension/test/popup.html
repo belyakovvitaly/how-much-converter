@@ -99,6 +99,13 @@
         check("target currencies are listed", $("targetCurrency").options.length > 40, true);
         check("the saved target is selected", $("targetCurrency").value, "EUR");
         check('"$" offers detection', $("dollarAssumption").options[0].value, "auto");
+        check("where to show it offers three places",
+          [...$("display").options].map((o) => o.value).join(" "), "beside replace hover");
+        check("beside the price, when nothing was chosen", $("display").value, "beside");
+        $("display").value = "hover";
+        $("display").dispatchEvent(new Event("change"));
+        await new Promise((r) => setTimeout(r, 50));
+        check("choosing another is saved", STORE.display, "hover");
         check("the report button is the new one", $("report").textContent.trim(), "It didn't work here");
 
         // Flags. The table is checked on its own, whatever the system can draw;
@@ -131,7 +138,8 @@
           t.includes("amarket.com.bo") &&
           t.includes("page currency: BOB") &&
           t.includes('"Bs21,50"') &&
-          t.includes("9.9.9"));
+          t.includes("9.9.9") &&
+          t.includes("shown: hover"));
 
         $("issueReports").click();
         await new Promise((r) => setTimeout(r, 100));

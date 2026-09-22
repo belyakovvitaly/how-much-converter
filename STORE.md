@@ -61,6 +61,8 @@ prepared in this file.
 > your currency appended right after it, so you can read a shop the way a local
 > does.
 >
+> • Show the conversion beside the price, in place of it, or only when you
+>   point at a price — whichever reads best to you.
 > • Works on any site — supermarkets, marketplaces, listings, news.
 > • Understands currency symbols and ISO codes on either side of the number
 >   ($5, 5 USD, €5, 5 €, Gs 23.000, ₽500), and the codes shops write instead of
@@ -95,21 +97,24 @@ prepared in this file.
 >
 > The extension reads the text of the page the user is viewing, recognizes
 > amounts written with a currency symbol or an ISO code, converts them using a
-> public exchange-rate table, and appends the converted amount next to the
-> original price. Nothing on the page is replaced, hidden or rewritten; the
-> original price stays exactly as the site wrote it.
+> public exchange-rate table, and shows the converted amount next to the
+> original price — or, if the user chooses, in its place or only on hover. The
+> original price is never rewritten: in place of it, it is hidden and kept in a
+> tooltip, and it returns exactly as the site wrote it when the setting is
+> changed or the extension turned off.
 >
 > There is no second feature. It does not block, inject, redirect or modify page
-> content beyond appending that converted amount, and it collects nothing about
-> the user or the pages they visit.
+> content beyond showing that converted amount — and, where the user asks for it
+> in place of the price, hiding the original until they change their mind — and
+> it collects nothing about the user or the pages they visit.
 
 **Justification — `storage`**
 
 > chrome.storage.local is used for four local things, none of which leave the
 > browser:
 >
-> 1. The user's three settings: the target currency, what a bare "$" should
->    mean, and whether conversion is switched on.
+> 1. The user's settings: the target currency, where the conversion is shown,
+>    what a bare "$" should mean, and whether conversion is switched on.
 > 2. A cache of the exchange-rate table, so the extension does not refetch rates
 >    on every page load. It is refreshed at most every six hours.
 > 3. The list of pages the user marked with "It didn't work here", so they can
@@ -140,7 +145,7 @@ endpoint reads as an omission about the broader one.
 > in advance which sites they will want converted. The value of the extension is
 > that a price is converted wherever it shows up, including on a site the user
 > has never visited before. The script only reads page text to locate prices and
-> appends a converted amount next to them. It sends nothing anywhere: page
+> shows a converted amount with them. It sends nothing anywhere: page
 > content never leaves the browser.
 
 **Data usage** — certify that no user data is collected, for every category.

@@ -9,10 +9,10 @@ accounts, analytics, or trackers.
 
 ## What is stored, and where
 
-Three settings — your target currency, what a bare `$` should mean, and whether
-conversion is on — plus a cached table of exchange rates. All of it lives in
-`chrome.storage.local`, on your own machine. It is never uploaded, and it is
-deleted when you remove the extension.
+Your settings — the target currency, where the conversion is shown, what a bare
+`$` should mean, and whether conversion is on — and a cached table of exchange
+rates. All of it lives in `chrome.storage.local`, on your own machine. It is
+never uploaded, and it is deleted when you remove the extension.
 
 ## Reported pages
 
@@ -37,9 +37,10 @@ Two buttons take it out of the browser, and only when you press them:
 
 ## What is read from web pages
 
-To find prices, the extension reads the text of the pages you visit and adds a
-converted amount next to any price it recognizes. This happens entirely inside
-your browser. Page content is never transmitted, stored, or logged.
+To find prices, the extension reads the text of the pages you visit and shows a
+converted amount with any price it recognizes — beside it, in its place, or on
+hover, as you choose. This happens entirely inside your browser. Page content is
+never transmitted, stored, or logged.
 
 ## Network requests
 

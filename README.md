@@ -9,6 +9,9 @@ them in the currency you care about, inline, next to the original:
 
 > The jacket costs **$129.00 (≈ 119 EUR)**.
 
+Or, if you would rather, in place of the price — the shop's own is a hover
+away — or only when you point at a price, leaving the page exactly as it was.
+
 No build step, no framework, no API key.
 
 Prices the page renders as separate elements (`<span>Gs</span><span>23.000</span>`,
@@ -19,7 +22,8 @@ which names no currency at all.
 
 ![Converted prices on a shop page](docs/screenshot-inline.png)
 
-The popup picks the target currency, and can settle what a bare `$` means —
+The popup picks the target currency and where the conversion goes, and can
+settle what a bare `$` means —
 though by default it works that out from the page itself, since much of Latin
 America prints `$` and means a peso:
 
@@ -138,8 +142,9 @@ GitHub release.
 | Rates | `extension/src/background.js` | Fetches a USD-based rate table from [open.er-api.com](https://open.er-api.com) and caches it in `chrome.storage.local` for 6 hours. All pairs are derived as cross rates. |
 | Detection | `extension/src/currency.js` | Symbol/ISO-code tables and a locale-aware number parser (`1 234,56` vs `1,234.56` vs `1'234.56`). |
 | Which currency a page is in | `extension/src/currency.js` | `priceCurrency` markup first, then the ccTLD, then the `lang` attribute — and where the first two disagree, the language breaks the tie. This is what makes a shared symbol readable. |
-| Page changes | `extension/src/content.js` | Two passes — text nodes that hold a whole price, then shallow elements that spread one across children — appending the converted value in a `.hmc-conv` span, and re-scanning on DOM mutations. |
-| Settings | `extension/src/popup.*` | Target currency, what `$` should mean, on/off, a manual rate refresh, and the list of reported pages. |
+| Page changes | `extension/src/content.js` | Two passes — text nodes that hold a whole price, then shallow elements that spread one across children — marking each price `data-hmc`, showing its conversion beside it, in its place or on hover, and re-scanning on DOM mutations. |
+| Hiding and the tooltip | `extension/src/content.css` | Loaded by the manifest rather than written into the page, which a site's Content-Security-Policy could refuse. Keyed to the extension's own attributes only. |
+| Settings | `extension/src/popup.*` | Target currency, where the conversion is shown, what `$` should mean, on/off, a manual rate refresh, and the list of reported pages. |
 
 ## Reporting a page that does not work
 
@@ -171,11 +176,14 @@ profile only, which also means it does not follow you to another machine.
   collapsed. That covers the usual store-template shapes, not every one.
 - An element holding two split prices at once is skipped, because there is no
   way to say which one an appended conversion belongs to.
+- **Instead of the price** hides the whole element a split price was found in,
+  so a unit printed in it ("340 руб/шт") goes with the price. The original,
+  unit and all, is in the conversion's tooltip.
 
 ## Roadmap ideas
 
 - Per-site currency overrides.
-- Hover tooltip with the rate and fetch time instead of inline text.
+- The rate and its fetch time in the hover tooltip, not only the amount.
 - Offline fallback bundle of rates.
 - The iOS app in [`ios/`](ios). The price rules, the rates and the voting are
   already shared code in `android/core`; what iOS needs of its own is the

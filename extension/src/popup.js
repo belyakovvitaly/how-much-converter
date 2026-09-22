@@ -11,6 +11,7 @@
     enabled: document.getElementById("enabled"),
     target: document.getElementById("targetCurrency"),
     dollar: document.getElementById("dollarAssumption"),
+    display: document.getElementById("display"),
     status: document.getElementById("ratesStatus"),
     refresh: document.getElementById("refresh"),
     report: document.getElementById("report"),
@@ -78,6 +79,8 @@
     targetCurrency: "USD",
     // "auto" reads the currency off the page; picking a code here overrides it.
     dollarAssumption: "auto",
+    // Beside the price, in its place, or on hover.
+    display: "beside",
   };
 
   function ago(ts) {
@@ -104,6 +107,7 @@
     els.enabled.checked = s.enabled;
     els.target.value = s.targetCurrency;
     els.dollar.value = s.dollarAssumption;
+    els.display.value = s.display;
     showRatesStatus();
   }
 
@@ -112,12 +116,14 @@
       enabled: els.enabled.checked,
       targetCurrency: els.target.value,
       dollarAssumption: els.dollar.value,
+      display: els.display.value,
     });
   }
 
   els.enabled.addEventListener("change", save);
   els.target.addEventListener("change", save);
   els.dollar.addEventListener("change", save);
+  els.display.addEventListener("change", save);
 
   els.refresh.addEventListener("click", () => {
     els.status.textContent = "Rates: refreshing…";
@@ -177,9 +183,9 @@
     }
 
     const { reports = [] } = await chrome.storage.local.get("reports");
-    const { targetCurrency, dollarAssumption } = {
+    const { targetCurrency, dollarAssumption, display } = {
       ...DEFAULTS,
-      ...(await chrome.storage.local.get(["targetCurrency", "dollarAssumption"])),
+      ...(await chrome.storage.local.get(["targetCurrency", "dollarAssumption", "display"])),
     };
     const entry = {
       url: info.url,
@@ -193,6 +199,7 @@
       missed: info.missed || [],
       target: targetCurrency,
       dollar: dollarAssumption,
+      display,
       version: VERSION,
     };
     const seen = reports.findIndex((r) => r.url === entry.url);
@@ -210,7 +217,9 @@
       `${new Date(r.at).toISOString().slice(0, 10)}  ${r.url}`,
       `  extension ${r.version || "?"}  ·  page currency: ${r.currency || "not detected"}` +
         `  ·  converted: ${r.converted}` +
-        `  ·  target: ${r.target || "?"}  ·  "$" as: ${r.dollar || "?"}`,
+        `  ·  target: ${r.target || "?"}  ·  "$" as: ${r.dollar || "?"}` +
+        // Reports saved before there was a choice were all "beside".
+        `  ·  shown: ${r.display || "beside"}`,
     ];
     if (r.missed && r.missed.length) {
       lines.push(`  not converted: ${r.missed.map((m) => JSON.stringify(m)).join("  ")}`);
