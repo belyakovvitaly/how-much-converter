@@ -52,6 +52,10 @@ jobs:
 
       - name: Build
         working-directory: android
+        # Where the Report button sends its zip; kept out of the public
+        # repository. Unset, reports go to the share sheet instead.
+        env:
+          HOW_MUCH_REPORT_EMAIL: ${{ secrets.HOW_MUCH_REPORT_EMAIL }}
         run: ./gradlew :app:assembleDebug
 
       - name: Name the APK after the version it is

@@ -1,5 +1,7 @@
 package converter.android.ui
 
+import android.content.Context
+import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -7,7 +9,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.text.font.createFontFamilyResolver
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -47,20 +54,65 @@ fun PriceOverlay(
     val measurer = rememberTextMeasurer()
 
     Canvas(modifier.fillMaxSize()) {
-        if (imageWidth <= 0 || imageHeight <= 0 || rates == null || target == null) return@Canvas
-        val viewport = Viewport(imageWidth, imageHeight, size.width, size.height)
+        drawConversions(measurer, prices, imageWidth, imageHeight, rates, target)
+    }
+}
 
-        for (located in prices) {
-            // Already in the target currency: a label would repeat the tag.
-            if (located.price.code == target) continue
-            val converted = rates.convert(located.price.amount, located.price.code, target)
-                ?: continue
-            drawLabel(
-                measurer = measurer,
-                box = viewport.map(located.box),
-                text = formatConverted(converted, target),
-            )
-        }
+/**
+ * The picture with its labels drawn into it, at the picture's own size — what
+ * the screen shows, as a file.
+ *
+ * The same drawing as [PriceOverlay], onto a bitmap instead of a view, so a
+ * saved picture cannot come out labelled differently from the one on screen.
+ * The scale is one pixel to a pixel, and so is the type's.
+ */
+fun renderConversions(
+    context: Context,
+    image: Bitmap,
+    prices: List<LocatedPrice>,
+    rates: RateTable?,
+    target: String?,
+): Bitmap {
+    val out = image.copy(Bitmap.Config.ARGB_8888, true)
+    val density = Density(1f, 1f)
+    val measurer = TextMeasurer(
+        defaultFontFamilyResolver = createFontFamilyResolver(context),
+        defaultDensity = density,
+        defaultLayoutDirection = LayoutDirection.Ltr,
+    )
+    CanvasDrawScope().draw(
+        density = density,
+        layoutDirection = LayoutDirection.Ltr,
+        canvas = androidx.compose.ui.graphics.Canvas(out.asImageBitmap()),
+        size = Size(out.width.toFloat(), out.height.toFloat()),
+    ) {
+        drawConversions(measurer, prices, out.width, out.height, rates, target)
+    }
+    return out
+}
+
+/** Every label, mapped from the picture's pixels onto whatever is drawn on. */
+private fun DrawScope.drawConversions(
+    measurer: TextMeasurer,
+    prices: List<LocatedPrice>,
+    imageWidth: Int,
+    imageHeight: Int,
+    rates: RateTable?,
+    target: String?,
+) {
+    if (imageWidth <= 0 || imageHeight <= 0 || rates == null || target == null) return
+    val viewport = Viewport(imageWidth, imageHeight, size.width, size.height)
+
+    for (located in prices) {
+        // Already in the target currency: a label would repeat the tag.
+        if (located.price.code == target) continue
+        val converted = rates.convert(located.price.amount, located.price.code, target)
+            ?: continue
+        drawLabel(
+            measurer = measurer,
+            box = viewport.map(located.box),
+            text = formatConverted(converted, target),
+        )
     }
 }
 

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The only files another app is ever handed: a problem report, written to
+     the cache and shared through the system's share sheet. -->
+<paths>
+    <cache-path name="reports" path="reports/" />
+</paths>

@@ -1,10 +1,15 @@
 package converter.android
 
+import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -21,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import kotlinx.coroutines.flow.first
 import androidx.compose.ui.graphics.Color
@@ -31,15 +37,21 @@ import converter.android.ocr.StillImages
 import converter.android.ocr.UnwiredEngine
 import converter.android.rates.RatesRepository
 import converter.android.rates.CurrencyStore
+import converter.android.share.Exports
 import converter.android.ui.CalculatorScreen
 import converter.android.ui.CameraScreen
 import converter.android.ui.HomeScreen
+import converter.android.ui.Origin
+import converter.android.ui.renderConversions
 import converter.android.ui.CurrencyPicker
 import converter.android.ui.GalleryScreen
 import converter.android.ui.embeddedPickerAvailable
 import converter.android.ui.Still
 import converter.android.ui.StillScreen
+import converter.core.LocatedPrice
+import converter.core.ProblemReport
 import converter.core.RateTable
+import converter.core.problemReportText
 import converter.core.PriceContext
 import converter.core.RatesOutcome
 import converter.core.locatePrices
@@ -48,6 +60,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
@@ -123,7 +138,7 @@ class MainActivity : ComponentActivity() {
 
                     // Reading a still photograph, in one place, so the shutter
                     // and the gallery cannot drift apart.
-                    fun read(image: Bitmap?) {
+                    fun read(image: Bitmap?, origin: Origin, uri: Uri? = null) {
                         if (image == null) {
                             still = Still.Failed("Could not open that picture")
                             return
@@ -146,17 +161,17 @@ class MainActivity : ComponentActivity() {
                                 // the rest of the reading to.
                                 current.recognize(image, thorough = true)
                             }
-                            still = Still.Read(image, lines)
+                            still = Still.Read(image, lines, origin, uri)
                         }
                     }
 
-                    fun open(uri: Uri) {
+                    fun open(uri: Uri, origin: Origin) {
                         still = Still.Working(null)
                         scope.launch {
                             val image = withContext(Dispatchers.IO) {
                                 StillImages.loadUpright(context, uri)
                             }
-                            read(image)
+                            read(image, origin, uri)
                         }
                     }
 
@@ -164,7 +179,7 @@ class MainActivity : ComponentActivity() {
                     // available.
                     val fromGallery = rememberLauncherForActivityResult(
                         ActivityResultContracts.PickVisualMedia()
-                    ) { uri: Uri? -> uri?.let(::open) }
+                    ) { uri: Uri? -> uri?.let { open(it, Origin.Gallery) } }
 
                     fun pickStandalone() = fromGallery.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -176,7 +191,7 @@ class MainActivity : ComponentActivity() {
                         shared?.let { uri ->
                             shared = null
                             browsing = false
-                            open(uri)
+                            open(uri, Origin.Shared)
                         }
                     }
 
@@ -215,7 +230,7 @@ class MainActivity : ComponentActivity() {
                             target = target,
                             onChangeSource = { picking = Picking.Source },
                             onChangeTarget = { picking = Picking.Target },
-                            onPhoto = { read(it) },
+                            onPhoto = { read(it, Origin.Camera) },
                             onPickFromGallery = ::pickFromGallery,
                             onClose = { screen = Screen.Home },
                         )
@@ -225,7 +240,7 @@ class MainActivity : ComponentActivity() {
                         GalleryScreen(
                             onPicked = { uri ->
                                 browsing = false
-                                open(uri)
+                                open(uri, Origin.Gallery)
                             },
                             onUnavailable = {
                                 Log.w(TAG, "embedded photo picker failed; using the standalone one")
@@ -234,6 +249,89 @@ class MainActivity : ComponentActivity() {
                             },
                             onClose = { browsing = false },
                         )
+                    }
+
+                    // The picture as the screen shows it, labels and all, into
+                    // the gallery. Before Android 10 that needs storage asked
+                    // for first; the save waits for the answer.
+                    var savePending by remember { mutableStateOf<(() -> Unit)?>(null) }
+                    val askStorage = rememberLauncherForActivityResult(
+                        ActivityResultContracts.RequestPermission()
+                    ) { granted ->
+                        val pending = savePending
+                        savePending = null
+                        if (granted) pending?.invoke()
+                        else toast(context, "Saving needs access to storage")
+                    }
+
+                    fun save(read: Still.Read, prices: List<LocatedPrice>) {
+                        val work = {
+                            scope.launch {
+                                val saved = withContext(Dispatchers.IO) {
+                                    val picture = renderConversions(context, read.image, prices, rates, target)
+                                    Exports.saveToGallery(context, picture).also { picture.recycle() }
+                                }
+                                toast(
+                                    context,
+                                    if (saved) "Saved to Pictures/${Exports.ALBUM}" else "Could not save the picture",
+                                )
+                            }
+                            Unit
+                        }
+                        val legacy = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+                        if (legacy && ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            savePending = work
+                            askStorage.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                        } else {
+                            work()
+                        }
+                    }
+
+                    fun report(read: Still.Read, prices: List<LocatedPrice>, note: String) {
+                        val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm z", Locale.US)
+                        val details = ProblemReport(
+                            appVersion = appVersion(context),
+                            device = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), " +
+                                "${Build.MANUFACTURER} ${Build.MODEL}",
+                            writtenAt = stamp.format(Date()),
+                            origin = read.origin.label,
+                            readWidth = read.image.width,
+                            readHeight = read.image.height,
+                            source = source,
+                            detectedSource = detectedLocal,
+                            target = target,
+                            detectedTarget = detectedHome,
+                            receipt = receipt,
+                            rates = rates,
+                            ratesFetchedAt = rates?.let { stamp.format(Date(it.fetchedAt)) },
+                            lines = read.lines,
+                            prices = prices,
+                            note = note,
+                        )
+                        scope.launch {
+                            val zip = runCatching {
+                                withContext(Dispatchers.IO) {
+                                    val shown = renderConversions(context, read.image, prices, rates, target)
+                                    Exports.writeReport(
+                                        context,
+                                        text = problemReportText(details),
+                                        read = read.image,
+                                        original = read.uri,
+                                        shown = shown,
+                                    ).also { shown.recycle() }
+                                }
+                            }.onFailure { Log.e(TAG, "could not write a report", it) }.getOrNull()
+                            if (zip == null) {
+                                toast(context, "Could not write the report")
+                            } else {
+                                val summary = "How Much? ${details.appVersion}: " +
+                                    note.trim().ifEmpty { "a picture that did not convert right" }
+                                Exports.shareReport(context, zip, summary)
+                            }
+                        }
                     }
 
                     still?.let { current ->
@@ -266,6 +364,8 @@ class MainActivity : ComponentActivity() {
                             onChangeSource = { picking = Picking.Source },
                             onChangeTarget = { picking = Picking.Target },
                             onClose = { still = null },
+                            onSave = { (current as? Still.Read)?.let { save(it, prices) } },
+                            onReport = { note -> (current as? Still.Read)?.let { report(it, prices, note) } },
                         )
                     }
 
@@ -320,6 +420,13 @@ class MainActivity : ComponentActivity() {
         if (intent.type?.startsWith("image/") != true) return null
         return IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
     }
+
+    private fun toast(context: Context, text: String) =
+        Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+
+    private fun appVersion(context: Context): String = runCatching {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName
+    }.getOrNull() ?: "?"
 
     /** Which of the two currencies the picker is open for. */
     private enum class Picking { Source, Target }

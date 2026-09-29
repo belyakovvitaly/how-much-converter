@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 
 // The controls are drawn rather than imported. Material's extended icon set is
 // several megabytes for the sake of a few glyphs, and these are a circle, a
-// picture frame, a camera, a calculator and an arrow.
+// picture frame, a camera, a calculator, an arrow, a tray and a flag.
 
 /** The shutter: a white disc inside a thin ring, as every camera app has. */
 @Composable
@@ -184,5 +184,65 @@ fun BackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
             color = Color.White,
             style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
+    }
+}
+
+/** Save: an arrow down into a tray, on a dark disc like [BackButton]. */
+@Composable
+fun SaveButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Canvas(
+        modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "Save to gallery" }
+    ) {
+        drawCircle(color = Color(0x99000000))
+        val s = size.minDimension
+        val line = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        val arrow = Path().apply {
+            moveTo(s * 0.5f, s * 0.27f)
+            lineTo(s * 0.5f, s * 0.58f)
+            moveTo(s * 0.37f, s * 0.46f)
+            lineTo(s * 0.5f, s * 0.59f)
+            lineTo(s * 0.63f, s * 0.46f)
+        }
+        val tray = Path().apply {
+            moveTo(s * 0.3f, s * 0.6f)
+            lineTo(s * 0.3f, s * 0.71f)
+            lineTo(s * 0.7f, s * 0.71f)
+            lineTo(s * 0.7f, s * 0.6f)
+        }
+        drawPath(arrow, color = Color.White, style = line)
+        drawPath(tray, color = Color.White, style = line)
+    }
+}
+
+/** Report a problem: a flag on its pole, on a dark disc like [BackButton]. */
+@Composable
+fun ReportButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Canvas(
+        modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "Report a problem" }
+    ) {
+        drawCircle(color = Color(0x99000000))
+        val s = size.minDimension
+        val line = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        val pole = Path().apply {
+            moveTo(s * 0.34f, s * 0.74f)
+            lineTo(s * 0.34f, s * 0.26f)
+        }
+        val flag = Path().apply {
+            moveTo(s * 0.34f, s * 0.28f)
+            lineTo(s * 0.68f, s * 0.28f)
+            lineTo(s * 0.6f, s * 0.39f)
+            lineTo(s * 0.68f, s * 0.5f)
+            lineTo(s * 0.34f, s * 0.5f)
+        }
+        drawPath(pole, color = Color.White, style = line)
+        drawPath(flag, color = Color.White, style = line)
     }
 }

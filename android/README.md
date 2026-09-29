@@ -323,6 +323,50 @@ Two things a still needs that a frame does not:
   camera keeps running, and two readings sharing one tracker would carry text
   from one picture onto another.
 
+## Keeping a picture, and reporting one
+
+Once a picture is read, two buttons sit in its top corner.
+
+**Save** puts it in the gallery, in Pictures/How Much, with the labels drawn
+into it. It is the same drawing as the screen's, onto a bitmap at the
+picture's own size rather than onto a view, so the saved copy cannot come out
+labelled differently from what was on screen. From Android 10 the gallery takes
+it without any permission; before that the app asks for storage first.
+
+**Report** is for a picture that did not come out right. It asks what was
+wrong, then writes one zip and opens a mail app with it — a message addressed
+to the developer, with a subject, a line of summary and the zip attached, sent
+only when the reader sends it there. With one mail app on the phone it opens
+directly; with several, a chooser lists only those, since a chat app would
+ignore the address. With none, or in a build without an address, the share
+sheet opens instead and the reader picks where it goes.
+
+The address is not in the repository, which is public: the build takes it from
+the `HOW_MUCH_REPORT_EMAIL` environment variable — a secret of the same name in
+CI — or from `reportEmail=` in `local.properties`. The app never shows it; the
+mail app's own "To" does, since that is where the message is sent from, and
+anyone who unpacks the APK can find it.
+
+In the zip:
+
+- `report.txt` — the build and the phone; the currencies, each with what was
+  detected; the receipt switch; the rate used and when it was fetched; every
+  price found, with what it became and its box; and every line the recognizer
+  returned, quoted, with its confidence and box.
+- `original.jpg` (or `.png`, `.heic`) — the picture's own file, byte for byte,
+  when it came from the gallery or a share. The app reads a smaller, turned
+  copy, and a fix has to hold at the original's size too: one verified only at
+  a messenger's size has already failed on the phone.
+- `as-read.jpg` instead, for a photo taken in the app, which has no file of its
+  own — the picture exactly as the recognizer saw it, at JPEG quality 100.
+- `as-shown.jpg` — the picture with its labels, as the reader saw it.
+
+A zip rather than a picture because a messenger compresses a picture it is
+handed as one, and the failure may not survive the compression; a file travels
+as it is. Not a GitHub issue, which the extension uses: an issue link carries
+text and no picture, and the repository is public, while a receipt can show a
+card's last digits and a name. The dialog says that before anything is sent.
+
 ## A receipt, where the currency is printed nowhere
 
 A shop's receipt is mostly amounts with no currency beside them, so the photo

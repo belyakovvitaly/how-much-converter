@@ -1,7 +1,19 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// Where the Report button sends its zip. The repository is public and an
+// address in it is an address for every scraper, so it comes from outside:
+// the HOW_MUCH_REPORT_EMAIL environment variable (a secret, in CI) or
+// `reportEmail=` in local.properties. Without either, a report goes to the
+// share sheet and the reader picks where.
+val reportEmail: String = System.getenv("HOW_MUCH_REPORT_EMAIL")?.takeIf { it.isNotBlank() }
+    ?: Properties().apply {
+        rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    }.getProperty("reportEmail").orEmpty()
 
 android {
     namespace = "converter.android"
@@ -14,6 +26,7 @@ android {
         versionCode = 7
         versionName = "0.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "REPORT_EMAIL", "\"${reportEmail.trim()}\"")
 
         ndk {
             // ONNX Runtime ships a large native library for every ABI, and four
@@ -32,6 +45,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {

@@ -1,6 +1,7 @@
 package converter.android.ui
 
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,10 +38,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import converter.android.share.Exports
 import converter.core.LocatedPrice
 import converter.core.OcrLine
 import converter.core.RateTable
 import converter.core.Zoom
+
+/** Where a still came from, which a report says and a saved copy does not care about. */
+enum class Origin(val label: String) { Camera("camera"), Gallery("gallery"), Shared("shared") }
 
 /** A still photograph, with its prices converted in place. */
 sealed interface Still {
@@ -51,7 +57,13 @@ sealed interface Still {
      * are prices depends on the currencies and on receipt mode, and changing
      * either should not mean reading the picture again.
      */
-    data class Read(val image: Bitmap, val lines: List<OcrLine>) : Still
+    data class Read(
+        val image: Bitmap,
+        val lines: List<OcrLine>,
+        val origin: Origin,
+        /** The picture's own file, when it has one — not so for a photo taken here. */
+        val uri: Uri?,
+    ) : Still
 
     data class Failed(val reason: String) : Still
 }
@@ -72,6 +84,9 @@ sealed interface Still {
  * receipt does: with it on, every number written to the cent is taken to be in
  * the source currency. It is a switch rather than a guess, because on anything
  * but a receipt a bare number is as likely a weight or a code as a price.
+ *
+ * Once a picture is read, two buttons in the top corner: save it, labels and
+ * all, to the gallery; or report that it did not come out right.
  */
 @Composable
 fun StillScreen(
@@ -85,9 +100,12 @@ fun StillScreen(
     onChangeSource: () -> Unit,
     onChangeTarget: () -> Unit,
     onClose: () -> Unit,
+    onSave: () -> Unit,
+    onReport: (note: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onClose)
+    var reporting by rememberSaveable { mutableStateOf(false) }
 
     Box(modifier.fillMaxSize().background(Color.Black)) {
         val image = when (still) {
@@ -202,5 +220,31 @@ fun StillScreen(
                 )
                 .padding(8.dp),
         )
+
+        if (still is Still.Read) {
+            Row(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End)
+                    )
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ReportButton(onClick = { reporting = true })
+                SaveButton(onClick = onSave)
+            }
+        }
+
+        if (reporting) {
+            ReportDialog(
+                byEmail = Exports.reportEmail != null,
+                onSend = { note ->
+                    reporting = false
+                    onReport(note)
+                },
+                onDismiss = { reporting = false },
+            )
+        }
     }
 }
