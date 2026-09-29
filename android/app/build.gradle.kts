@@ -51,8 +51,8 @@ android {
         applicationId = "io.github.belyakovvitaly.howmuch"
         minSdk = 26
         targetSdk = 37
-        versionCode = 12
-        versionName = "0.7.3"
+        versionCode = 13
+        versionName = "0.7.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "REPORT_EMAIL", "\"${reportEmail.trim()}\"")
 
