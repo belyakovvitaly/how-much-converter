@@ -50,7 +50,7 @@ prepared in this file.
 
 **Short description** (132 char limit)
 
-> Shows the prices on any web page in the currency you actually think in, inline, right next to the original.
+> Shows the prices on any web page in the currency you actually think in: beside the original, instead of it, or on hover.
 
 **Category** — Shopping
 
@@ -81,8 +81,9 @@ prepared in this file.
 >   page itself, and leaves a price alone rather than guess when it cannot tell.
 >   You can still say what "$" should mean, if you would rather decide.
 > • Recognizes currencies that are spelled out rather than signed (340 руб).
-> • Rates come from a public exchange-rate service and are cached for six
->   hours; refresh them yourself any time from the popup.
+> • Rates come from a public exchange-rate service, which publishes them once
+>   a day; the extension fetches each day's table once, and you can refresh it
+>   yourself any time from the popup.
 > • Found a shop it misses? "It didn't work here" keeps a note in a list only
 >   you can see, stored in your own browser — copy it out or open a GitHub
 >   issue with it when you want to.
@@ -119,7 +120,8 @@ prepared in this file.
 >    what a bare "$" should mean, whether conversion is switched on, and the
 >    sites the user excluded, by site name only.
 > 2. A cache of the exchange-rate table, so the extension does not refetch rates
->    on every page load. It is refreshed at most every six hours.
+>    on every page load. It is refreshed at most every six hours — usually once
+>    a day, when the rate service publishes new rates.
 > 3. The list of pages the user marked with "It didn't work here", so they can
 >    review, copy or clear it in the popup. It holds the page address, what the
 >    extension detected, and a few price-shaped strings it failed to convert.
@@ -141,7 +143,8 @@ endpoint reads as an omission about the broader one.
 > a public, USD-based exchange-rate table, which is what makes conversion
 > possible; every currency pair is derived from it as a cross rate. The request
 > carries no user data, no page data and no identifier, and the response is
-> cached locally for six hours.
+> cached locally for at least six hours — usually a day, until the service
+> publishes its next table.
 >
 > The content script runs on <all_urls> because prices appear on arbitrary
 > shopping, marketplace, listing and news sites, and the user cannot enumerate

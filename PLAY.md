@@ -383,7 +383,7 @@ All in [`docs/play/`](docs/play), ready to upload.
   name, a one-line promise and the three ways in, on the icon's blues.
 - Both are rendered by [`tools/play-graphics.sh`](tools/play-graphics.sh) from
   headless Chrome; run it again after changing either.
-- **Phone screenshots** — 1080×1920, 9:16, from the release build on an emulator
+- **Phone screenshots** — 1080×1920, 9:16, from the 0.7.3 release build on an emulator
   whose display was set to that size, with the status bar in demo mode (12:00,
   full battery, Wi-Fi, no notifications). Prices in ARS, converted to USD. In
   the order to upload:
