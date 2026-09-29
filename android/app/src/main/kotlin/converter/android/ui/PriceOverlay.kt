@@ -28,6 +28,7 @@ import converter.core.RateTable
 import converter.core.Viewport
 import converter.core.convert
 import converter.core.formatConverted
+import converter.core.labelAreas
 
 /**
  * Draws each converted price over the price it was read from.
@@ -103,31 +104,34 @@ private fun DrawScope.drawConversions(
     if (imageWidth <= 0 || imageHeight <= 0 || rates == null || target == null) return
     val viewport = Viewport(imageWidth, imageHeight, size.width, size.height)
 
-    for (located in prices) {
+    val labels = prices.mapNotNull { located ->
         // Already in the target currency: a label would repeat the tag.
-        if (located.price.code == target) continue
+        if (located.price.code == target) return@mapNotNull null
         val converted = rates.convert(located.price.amount, located.price.code, target)
-            ?: continue
-        drawLabel(
-            measurer = measurer,
-            box = viewport.map(located.box),
-            text = formatConverted(converted, target),
-        )
+            ?: return@mapNotNull null
+        located.box to formatConverted(converted, target)
+    }
+    // Laid out together, so neighbours on a receipt do not cover each other;
+    // in the picture's pixels, since the mapping onto the view only scales.
+    val areas = labelAreas(labels.map { it.first })
+    for ((area, label) in areas.zip(labels)) {
+        drawLabel(measurer = measurer, area = viewport.map(area), text = label.second)
     }
 }
 
 /**
- * One label, covering the price it replaces.
+ * One label, filling the [area] laid out for it — its price and a margin, or
+ * less where a neighbour needed the room; see [labelAreas].
  *
- * The type is sized to the box, then shrunk if it would overflow, so a long
+ * The type is sized to the area, then shrunk if it would overflow, so a long
  * conversion over a short price stays inside its own background instead of
  * running across its neighbour.
  */
-private fun DrawScope.drawLabel(measurer: TextMeasurer, box: Box, text: String) {
-    val left = box.x0.toFloat()
-    val top = box.y0.toFloat()
-    val width = (box.x1 - box.x0).toFloat()
-    val height = (box.y1 - box.y0).toFloat()
+private fun DrawScope.drawLabel(measurer: TextMeasurer, area: Box, text: String) {
+    val left = area.x0.toFloat()
+    val top = area.y0.toFloat()
+    val width = (area.x1 - area.x0).toFloat()
+    val height = (area.y1 - area.y0).toFloat()
     if (width <= 1f || height <= 1f) return
 
     val padding = height * PADDING
@@ -142,9 +146,9 @@ private fun DrawScope.drawLabel(measurer: TextMeasurer, box: Box, text: String) 
 
     drawRoundRect(
         color = LABEL_BACKGROUND,
-        topLeft = Offset(left - padding, top - padding),
-        size = Size(width + padding * 2, height + padding * 2),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(height * 0.2f),
+        topLeft = Offset(left, top),
+        size = Size(width, height),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(height * CORNER),
     )
 
     drawText(
@@ -180,5 +184,9 @@ private fun DrawScope.measure(
 
 /** Dark enough to read white type on, sheer enough to see the tag underneath. */
 private val LABEL_BACKGROUND = Color(0xE6101418)
-private const val PADDING = 0.12f
-private const val FONT_HEIGHT = 0.72f
+// As shares of the whole label's height. A label with no neighbours is its box
+// and a margin of LABEL_MARGIN each side, so these draw it as it always was:
+// type at 0.72 of the box's height, padding 0.12, corners 0.2.
+private const val PADDING = 0.1f
+private const val FONT_HEIGHT = 0.58f
+private const val CORNER = 0.16f

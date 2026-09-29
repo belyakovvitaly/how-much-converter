@@ -4,7 +4,10 @@ import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import converter.core.Box
 import converter.core.PriceContext
+import converter.core.labelArea
+import converter.core.labelAreas
 import converter.core.locatePrices
 import org.junit.AfterClass
 import org.junit.Assert.assertTrue
@@ -55,6 +58,48 @@ class ReceiptPhotoTest {
             "read ${amounts.size} of the ${printed.size} amounts: $amounts",
             amounts.size >= printed.size - 1,
         )
+    }
+
+    /**
+     * The receipt's lines sit a line apart, and near the subtotal the amounts'
+     * boxes overlap outright: drawn as they came, the labels piled up and hid
+     * each other. Laid out, no two overlap, and each is still on its price.
+     */
+    @Test
+    fun labelsOnTheReceiptDoNotCoverEachOther() {
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val bitmap = context.assets.open("regression/receipt-photo.jpg").use {
+            BitmapFactory.decodeStream(it)
+        }
+        engine.reset()
+        val lines = engine.recognize(bitmap, thorough = true)
+        bitmap.recycle()
+        val boxes = locatePrices(lines, PriceContext(bareAmounts = "ARS")).map { it.box }
+        Log.i(TAG, "boxes: $boxes")
+
+        fun overlaps(areas: List<Box>) = areas.indices.flatMap { i ->
+            (i + 1 until areas.size).filter { j ->
+                val a = areas[i]
+                val b = areas[j]
+                minOf(a.x1, b.x1) > maxOf(a.x0, b.x0) && minOf(a.y1, b.y1) > maxOf(a.y0, b.y0)
+            }.map { j -> i to j }
+        }
+
+        // The case this is about: without the layout, labels do overlap.
+        val unplaced = overlaps(boxes.map { it.labelArea() })
+        Log.i(TAG, "overlapping before layout: $unplaced")
+        assertTrue("the fixture no longer has neighbouring labels to separate", unplaced.isNotEmpty())
+
+        val areas = labelAreas(boxes)
+        assertTrue("labels still overlap: ${overlaps(areas)}", overlaps(areas).isEmpty())
+        for ((box, area) in boxes.zip(areas)) {
+            val x = (box.x0 + box.x1) / 2
+            val y = (box.y0 + box.y1) / 2
+            assertTrue(
+                "a label moved off its price: $box -> $area",
+                x in area.x0..area.x1 && y in area.y0..area.y1,
+            )
+        }
     }
 
     companion object {

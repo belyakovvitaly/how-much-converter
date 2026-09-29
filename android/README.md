@@ -482,6 +482,17 @@ without a camera:
   the cropped part would be converted and then drawn off-screen.
 - The analyser remembers where each price was last seen, so a label stays put
   through the frames the voting keeps a price alive after it stops being read.
+- Neighbouring labels do not cover each other. A label is its price's box and
+  a margin, and on a receipt the lines sit so close — and a detector's box for
+  slightly turned text is so much taller than the text — that the margins, and
+  near the subtotal the boxes themselves, overlapped: three labels piled into
+  one unreadable block. [`labelAreas`](core/src/main/kotlin/converter/core/LabelLayout.kt)
+  lays them out before anything is drawn. Two that overlap are divided along
+  whatever separates them: margins first, so each still covers its whole
+  price; only where the boxes overlap too does the border fall halfway between
+  their lines. The type is sized to what is left, so a crowded label is drawn
+  smaller, on its own price. `ReceiptPhotoTest` holds the real receipt to it:
+  three overlapping pairs before, none after, every label still on its price.
 
 `PriceOverlayTest` renders the overlay over a frame of known size and checks the
 pixels, because a label fifty pixels off still draws, still says the right
