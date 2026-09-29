@@ -12,6 +12,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.content.FileProvider
+import androidx.exifinterface.media.ExifInterface
 import converter.android.BuildConfig
 import java.io.File
 import java.io.OutputStream
@@ -99,10 +100,14 @@ object Exports {
      * picture travels as it is.
      *
      * [original] is the picture's own file when there is one — from the gallery
-     * or a share — and is copied byte for byte, since the app reads a smaller,
-     * turned copy of it and a fix has to hold at the original's size too. A
-     * photo taken in the app has no file; [read], the picture as the recognizer
-     * saw it, is written instead, at a quality where JPEG loses next to nothing.
+     * or a share — and is copied with its pixels untouched, since the app reads
+     * a smaller, turned copy of it and a fix has to hold at the original's size
+     * too. Its GPS tags are not copied: a phone writes where a photo was taken
+     * into it, and a report has no use for that — see [stripLocation]. Where
+     * they cannot be removed, the original is left out. A photo taken in the
+     * app has no file; either way [read], the picture as the recognizer saw it,
+     * is written instead, at a quality where JPEG loses next to nothing — and
+     * with no EXIF at all, since it is encoded afresh.
      */
     fun writeReport(
         context: Context,
@@ -120,6 +125,8 @@ object Exports {
             out.entry("report.txt") { it.write(text.toByteArray()) }
 
             val copied = original?.let { uri ->
+                // Outside the reports folder, which another app may be handed.
+                val copy = File(context.cacheDir, "report-original")
                 runCatching {
                     val resolver = context.contentResolver
                     val extension = when (resolver.getType(uri)) {
@@ -130,9 +137,14 @@ object Exports {
                     }
                     resolver.openInputStream(uri).use { input ->
                         input ?: error("could not open $uri")
+                        copy.outputStream().use { input.copyTo(it) }
+                    }
+                    stripLocation(copy)
+                    copy.inputStream().use { input ->
                         out.entry("original.$extension") { input.copyTo(it) }
                     }
-                }.onFailure { Log.w(TAG, "could not copy the original of a report", it) }
+                }.onFailure { Log.w(TAG, "left the original out of a report", it) }
+                    .also { copy.delete() }
                     .isSuccess
             } ?: false
             if (!copied) {
@@ -208,6 +220,30 @@ object Exports {
             .filter { it.activityInfo.packageName in mailers }
             .distinctBy { it.activityInfo.packageName }
             .map { Intent(send).setClassName(it.activityInfo.packageName, it.activityInfo.name) }
+    }
+
+    /**
+     * Removes every GPS tag from a picture's EXIF, rewriting that block and
+     * nothing else — the pixels stay as they were. Throws where it cannot: a
+     * format ExifInterface cannot write, such as HEIC, or a file that still
+     * says where it was taken afterwards.
+     */
+    fun stripLocation(file: File) {
+        val exif = ExifInterface(file)
+        if (exif.latLong == null && GPS_TAGS.none { exif.getAttribute(it) != null }) return
+        for (tag in GPS_TAGS) exif.setAttribute(tag, null)
+        exif.saveAttributes()
+        val after = ExifInterface(file)
+        check(after.latLong == null && GPS_TAGS.none { after.getAttribute(it) != null }) {
+            "the picture still carries a location"
+        }
+    }
+
+    /** Every GPS tag ExifInterface names, so none is missed by listing them by hand. */
+    private val GPS_TAGS: List<String> by lazy {
+        ExifInterface::class.java.fields
+            .filter { it.name.startsWith("TAG_GPS_") && it.type == String::class.java }
+            .map { it.get(null) as String }
     }
 
     private inline fun ZipOutputStream.entry(name: String, write: (OutputStream) -> Unit) {

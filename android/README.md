@@ -379,12 +379,17 @@ In the zip:
   detected; the receipt switch; the rate used and when it was fetched; every
   price found, with what it became and its box; and every line the recognizer
   returned, quoted, with its confidence and box.
-- `original.jpg` (or `.png`, `.heic`) — the picture's own file, byte for byte,
-  when it came from the gallery or a share. The app reads a smaller, turned
-  copy, and a fix has to hold at the original's size too: one verified only at
-  a messenger's size has already failed on the phone.
-- `as-read.jpg` instead, for a photo taken in the app, which has no file of its
-  own — the picture exactly as the recognizer saw it, at JPEG quality 100.
+- `original.jpg` (or `.png`, `.webp`) — the picture's own file when it came
+  from the gallery or a share, its pixels untouched. The app reads a smaller,
+  turned copy, and a fix has to hold at the original's size too: one verified
+  only at a messenger's size has already failed on the phone. Its GPS tags are
+  removed first — a phone writes where a photo was taken into it, and
+  `ExportsTest` holds the copy to having none while keeping the image data and
+  the orientation byte for byte. A format whose EXIF cannot be rewritten, HEIC
+  among them, is left out rather than sent with a location.
+- `as-read.jpg` otherwise — for a photo taken in the app, which has no file of
+  its own, or an original left out — the picture exactly as the recognizer saw
+  it, at JPEG quality 100, and with no EXIF at all.
 - `as-shown.jpg` — the picture with its labels, as the reader saw it.
 
 A zip rather than a picture because a messenger compresses a picture it is
