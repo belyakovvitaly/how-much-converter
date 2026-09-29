@@ -383,7 +383,8 @@ All in [`docs/play/`](docs/play), ready to upload.
   name, a one-line promise and the three ways in, on the icon's blues.
 - Both are rendered by [`tools/play-graphics.sh`](tools/play-graphics.sh) from
   headless Chrome; run it again after changing either.
-- **Phone screenshots** — 1080×1920, 9:16, from the 0.7.3 release build on an emulator
+- **Phone screenshots** — 1080×1920, 9:16, from the release build (0.7.3; the
+  receipt 0.7.4) on an emulator
   whose display was set to that size, with the status bar in demo mode (12:00,
   full battery, Wi-Fi, no notifications). Prices in ARS, converted to USD. In
   the order to upload:
@@ -392,8 +393,7 @@ All in [`docs/play/`](docs/play), ready to upload.
   2. [`screenshot-2-receipt.png`](docs/play/screenshot-2-receipt.png) — a
      supermarket receipt in receipt mode, thirteen amounts and the discounts
      with their minus. The card's last digits were blanked before it ever
-     reached the repository. Near the subtotal the labels of two neighbouring
-     lines overlap: that is how the app shows it today.
+     reached the repository.
   3. [`screenshot-3-calculator.png`](docs/play/screenshot-3-calculator.png) —
      the calculator in the middle of 5,600 × 2.
   4. [`screenshot-4-home.png`](docs/play/screenshot-4-home.png) — the home
