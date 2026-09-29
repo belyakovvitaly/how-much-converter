@@ -369,12 +369,46 @@ Answer that only when asked to.
 
 ## Assets
 
-- **App icon** — 512×512 PNG, 32-bit. From the supplied picture the launcher
-  icon is made from, the same way; still to be made.
-- **Feature graphic** — 1024×500, JPEG or 24-bit PNG, no transparency. Still to
-  be made, from the same picture and the icon's blues.
-- **Phone screenshots** — 2 to 8. Each side between 320 and 3,840 pixels, and
-  the long side no more than twice the short one — so the emulator's
-  1080×2400 does not qualify, and they have to be taken at 1080×1920. Planned:
-  the home screen, the AVVE sign with its labels, the calculator in the middle
-  of a sum, and a receipt in receipt mode. Still to be taken.
+All in [`docs/play/`](docs/play), ready to upload.
+
+- **App icon** — [`icon-512.png`](docs/play/icon-512.png), 512×512, 32-bit
+  PNG. The owner's picture, [`tools/app-icon-source.png`](tools/app-icon-source.png),
+  arranged as the launcher shows it: filling the square, its own rounded
+  corners cut away with the icon's blues behind. Play rounds the corners
+  itself. The source is 398×392, so this is it enlarged by about a third and a
+  little softer than a native 512 — a larger original of the same picture would
+  fix that, and nothing else would.
+- **Feature graphic** — [`feature-graphic.jpg`](docs/play/feature-graphic.jpg),
+  1024×500, JPEG (no transparency, as Play asks): the same picture beside the
+  name, a one-line promise and the three ways in, on the icon's blues.
+- Both are rendered by [`tools/play-graphics.sh`](tools/play-graphics.sh) from
+  headless Chrome; run it again after changing either.
+- **Phone screenshots** — 1080×1920, 9:16, from the release build on an emulator
+  whose display was set to that size, with the status bar in demo mode (12:00,
+  full battery, Wi-Fi, no notifications). Prices in ARS, converted to USD. In
+  the order to upload:
+  1. [`screenshot-1-sign.png`](docs/play/screenshot-1-sign.png) — a street sign
+     in Buenos Aires, all seven prices converted in place.
+  2. [`screenshot-2-receipt.png`](docs/play/screenshot-2-receipt.png) — a
+     supermarket receipt in receipt mode, thirteen amounts and the discounts
+     with their minus. The card's last digits were blanked before it ever
+     reached the repository. Near the subtotal the labels of two neighbouring
+     lines overlap: that is how the app shows it today.
+  3. [`screenshot-3-calculator.png`](docs/play/screenshot-3-calculator.png) —
+     the calculator in the middle of 5,600 × 2.
+  4. [`screenshot-4-home.png`](docs/play/screenshot-4-home.png) — the home
+     screen.
+
+  To take them again:
+
+  ```sh
+  adb shell wm size 1080x1920
+  adb shell settings put global sysui_demo_allowed 1
+  adb shell am broadcast -a com.android.systemui.demo -e command enter
+  adb shell am broadcast -a com.android.systemui.demo -e command clock -e hhmm 1200
+  adb shell am broadcast -a com.android.systemui.demo -e command notifications -e visible false
+  adb exec-out screencap -p > screenshot.png
+  # afterwards
+  adb shell am broadcast -a com.android.systemui.demo -e command exit
+  adb shell wm size reset
+  ```

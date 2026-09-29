@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.PickVisualMediaRequest
@@ -76,7 +77,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Every screen is black whatever the phone's theme, so the status and
+        // navigation bars keep light icons. Left to follow the theme, a phone
+        // in light mode drew dark icons on the black — the time and battery
+        // were there and could not be seen.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         if (savedInstanceState == null) shared = sharedImage(intent)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
