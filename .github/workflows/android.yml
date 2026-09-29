@@ -1,4 +1,5 @@
-# Builds the Android APK and attaches it to a release.
+# Builds the Android app, signed, and attaches it to a release: an APK to
+# install by hand, and an App Bundle to upload to Google Play.
 #
 # The extension's workflow answers to `v*`; this one answers to `android-v*`, so
 # the two can be released apart. It also runs on demand, which is how it gets
@@ -50,32 +51,58 @@ jobs:
         working-directory: android
         run: ./gradlew :core:test
 
+      - name: Put the signing key where the build looks for it
+        # The upload key Google Play knows the app by. It lives only in the
+        # repository's secrets and in this job's temporary directory.
+        env:
+          KEYSTORE_BASE64: ${{ secrets.HOW_MUCH_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "no HOW_MUCH_KEYSTORE_BASE64 secret: a release would be unsigned" >&2
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          echo "HOW_MUCH_KEYSTORE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+
       - name: Build
         working-directory: android
-        # Where the Report button sends its zip; kept out of the public
-        # repository. Unset, reports go to the share sheet instead.
         env:
+          HOW_MUCH_KEYSTORE_PASSWORD: ${{ secrets.HOW_MUCH_KEYSTORE_PASSWORD }}
+          HOW_MUCH_KEY_ALIAS: ${{ secrets.HOW_MUCH_KEY_ALIAS }}
+          HOW_MUCH_KEY_PASSWORD: ${{ secrets.HOW_MUCH_KEY_PASSWORD }}
+          # Where the Report button sends its zip; kept out of the public
+          # repository. Unset, reports go to the share sheet instead.
           HOW_MUCH_REPORT_EMAIL: ${{ secrets.HOW_MUCH_REPORT_EMAIL }}
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleRelease :app:bundleRelease
 
-      - name: Name the APK after the version it is
-        id: apk
+      - name: Name the APK and the bundle after the version they are
+        id: out
         run: |
           version=$(sed -n 's/.*versionName[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
                     android/app/build.gradle.kts | head -1)
-          name="how-much-android-$version.apk"
-          cp android/app/build/outputs/apk/debug/app-debug.apk "$name"
-          echo "name=$name" >> "$GITHUB_OUTPUT"
-          ls -l "$name"
+          apk="how-much-android-$version.apk"
+          aab="how-much-android-$version.aab"
+          cp android/app/build/outputs/apk/release/app-release.apk "$apk"
+          cp android/app/build/outputs/bundle/release/app-release.aab "$aab"
+          # Signed by the upload key, or not at all: an unsigned APK would
+          # install nowhere and say so only on the phone.
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | grep "certificate SHA-256"
+          echo "apk=$apk" >> "$GITHUB_OUTPUT"
+          echo "aab=$aab" >> "$GITHUB_OUTPUT"
+          ls -l "$apk" "$aab"
 
-      - name: Keep it on the run, so a manual build can be downloaded
+      - name: Keep them on the run, so a manual build can be downloaded
         uses: actions/upload-artifact@v7
         with:
-          name: apk
-          path: ${{ steps.apk.outputs.name }}
+          name: app
+          path: |
+            ${{ steps.out.outputs.apk }}
+            ${{ steps.out.outputs.aab }}
 
       - uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: ${{ steps.apk.outputs.name }}
+          files: |
+            ${{ steps.out.outputs.apk }}
+            ${{ steps.out.outputs.aab }}
           generate_release_notes: true

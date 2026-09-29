@@ -39,7 +39,10 @@ a model download. To change them:
 ```
 
 To put it on a phone, the debug APK is enough: it is signed with the debug key,
-so it sideloads without a keystore.
+so it sideloads without a keystore. It is `io.github.belyakovvitaly.howmuch.debug`,
+named "How Much? dev", so it installs beside a released copy rather than
+clashing with it — the two are signed with different keys, and Android refuses
+one over the other.
 
 ```sh
 ./gradlew :app:assembleDebug
@@ -51,6 +54,29 @@ of models. The build keeps only `arm64-v8a`: four copies of that library made a
 166 MB APK, and every phone this can run on is 64-bit ARM, as is the emulator on
 an Apple Silicon Mac. An Intel-host emulator would need `x86_64` adding back in
 `app/build.gradle.kts`.
+
+## Signing, and what Google Play knows it by
+
+The app is `io.github.belyakovvitaly.howmuch`. That is permanent once it is on
+Google Play; `converter.android`, what it was until 0.6.0, was never going to be
+free there. The code's own package — the namespace — is still
+`converter.android`, which nothing outside the build sees.
+
+A release is signed with the project's upload key: the APK on GitHub, and the
+App Bundle that goes to Play, where Play App Signing re-signs it for the store.
+The key is not in the repository. CI reads it from four secrets —
+`HOW_MUCH_KEYSTORE_BASE64`, `HOW_MUCH_KEYSTORE_PASSWORD`, `HOW_MUCH_KEY_ALIAS`,
+`HOW_MUCH_KEY_PASSWORD` — and refuses to make a release without them. On a
+machine, `signingProperties=` in `local.properties` names a file holding
+`storeFile`, `storePassword`, `keyAlias` and `keyPassword`; without it,
+`assembleRelease` builds unsigned and the debug build is unaffected.
+
+```sh
+./gradlew :app:assembleRelease :app:bundleRelease
+```
+
+Lose the key and Play can be asked to accept a new upload key, but the APK on
+GitHub cannot be updated in place: a phone would have to uninstall first.
 
 ## What `:app` does today
 

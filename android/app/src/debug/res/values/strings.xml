@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A development build, installed beside the released app. -->
+    <string name="app_name">How Much? dev</string>
+</resources>

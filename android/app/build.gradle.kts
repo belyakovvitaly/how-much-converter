@@ -5,22 +5,50 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+fun propertiesOf(file: File): Properties = Properties().apply {
+    file.takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+
+/** Per machine, and out of the repository. */
+val localProperties = propertiesOf(rootProject.file("local.properties"))
+
+fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
+
 // Where the Report button sends its zip. The repository is public and an
 // address in it is an address for every scraper, so it comes from outside:
 // the HOW_MUCH_REPORT_EMAIL environment variable (a secret, in CI) or
 // `reportEmail=` in local.properties. Without either, a report goes to the
 // share sheet and the reader picks where.
-val reportEmail: String = System.getenv("HOW_MUCH_REPORT_EMAIL")?.takeIf { it.isNotBlank() }
-    ?: Properties().apply {
-        rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
-    }.getProperty("reportEmail").orEmpty()
+val reportEmail: String = env("HOW_MUCH_REPORT_EMAIL")
+    ?: localProperties.getProperty("reportEmail").orEmpty()
+
+// The key a release is signed with — the upload key Google Play knows the app
+// by, and the one the APK on GitHub carries. Also from outside: in CI, the
+// HOW_MUCH_KEYSTORE* variables; on a machine, a file named by
+// `signingProperties=` in local.properties, holding storeFile, storePassword,
+// keyAlias and keyPassword. Without it a release builds unsigned.
+val signing: Map<String, String>? = run {
+    val fromEnv = mapOf(
+        "storeFile" to env("HOW_MUCH_KEYSTORE"),
+        "storePassword" to env("HOW_MUCH_KEYSTORE_PASSWORD"),
+        "keyAlias" to env("HOW_MUCH_KEY_ALIAS"),
+        "keyPassword" to env("HOW_MUCH_KEY_PASSWORD"),
+    )
+    if (fromEnv.values.all { it != null }) return@run fromEnv.mapValues { it.value!! }
+    val file = localProperties.getProperty("signingProperties") ?: return@run null
+    val props = propertiesOf(File(file))
+    listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+        .associateWith { props.getProperty(it) ?: return@run null }
+}
 
 android {
     namespace = "converter.android"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "converter.android"
+        // What Google Play knows the app by, for good: it cannot change once
+        // uploaded. The namespace above is only the code's package, and stays.
+        applicationId = "io.github.belyakovvitaly.howmuch"
         minSdk = 26
         targetSdk = 37
         versionCode = 8
@@ -37,9 +65,28 @@ android {
         }
     }
 
+    signingConfigs {
+        if (signing != null) {
+            create("release") {
+                storeFile = file(signing.getValue("storeFile"))
+                storePassword = signing.getValue("storePassword")
+                keyAlias = signing.getValue("keyAlias")
+                keyPassword = signing.getValue("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
+        }
+        debug {
+            // A development build installs beside the released app instead of
+            // over it — the two are signed with different keys, and Android
+            // would refuse one over the other. src/debug names it "How Much?
+            // dev", so the two icons can be told apart.
+            applicationIdSuffix = ".debug"
         }
     }
 
