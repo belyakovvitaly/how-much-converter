@@ -13,21 +13,53 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.math.abs
 import kotlin.math.round
 
-/** Rates against [base], and when they were fetched (epoch milliseconds). */
+/**
+ * Rates against [base], and when they were fetched (epoch milliseconds).
+ *
+ * [updatedAt] is when the service published them, and [nextUpdateAt] when it
+ * says it will publish the next ones — it does so once a day. Both are null
+ * for a table cached before they were read, or a response without them.
+ */
 data class RateTable(
     val base: String,
     val rates: Map<String, Double>,
     val fetchedAt: Long,
+    val updatedAt: Long? = null,
+    val nextUpdateAt: Long? = null,
 )
 
-/** Six hours, as the extension uses. Rates move slower than that. */
+/**
+ * Never ask again sooner than this: six hours, as the extension uses, and what
+ * the privacy policy promises. Without a schedule from the service, a table is
+ * also stale after it.
+ */
 const val RATES_MAX_AGE_MILLIS: Long = 6 * 60 * 60 * 1000
+
+/**
+ * With a schedule, the longest a table is trusted to still be the latest, in
+ * case the schedule slips: a day and a half.
+ */
+const val RATES_LONGEST_WAIT_MILLIS: Long = 36 * 60 * 60 * 1000
 
 /** https://open.er-api.com — free, no key, one request covers every pair. */
 const val RATES_URL: String = "https://open.er-api.com/v6/latest/USD"
 
-fun RateTable.isFresh(now: Long, maxAge: Long = RATES_MAX_AGE_MILLIS): Boolean =
-    now - fetchedAt in 0 until maxAge
+/**
+ * Whether asking again could bring anything new.
+ *
+ * The service publishes once a day and says when it will next do so; before
+ * then, another request would fetch the same table. So a table is fresh for
+ * [maxAge] regardless, and after that for as long as the next publication is
+ * still ahead — but never past [RATES_LONGEST_WAIT_MILLIS], and never when the
+ * clock says it was fetched in the future.
+ */
+fun RateTable.isFresh(now: Long, maxAge: Long = RATES_MAX_AGE_MILLIS): Boolean {
+    val age = now - fetchedAt
+    if (age < 0) return false
+    if (age < maxAge) return true
+    val next = nextUpdateAt ?: return false
+    return now < next && age < RATES_LONGEST_WAIT_MILLIS
+}
 
 fun RateTable.knows(code: String): Boolean = rates.containsKey(code)
 
@@ -72,7 +104,16 @@ fun parseRatesResponse(json: String, fetchedAt: Long): RateTable? {
     if (parsed.isEmpty()) return null
 
     val base = root["base_code"]?.jsonPrimitive?.content ?: "USD"
-    return RateTable(base, parsed, fetchedAt)
+    // Seconds since the epoch; zero or absent means the service did not say.
+    fun time(key: String): Long? =
+        root[key]?.jsonPrimitive?.content?.toLongOrNull()?.takeIf { it > 0 }?.times(1000)
+    return RateTable(
+        base = base,
+        rates = parsed,
+        fetchedAt = fetchedAt,
+        updatedAt = time("time_last_update_unix"),
+        nextUpdateAt = time("time_next_update_unix"),
+    )
 }
 
 /** What [resolveRates] could offer. */

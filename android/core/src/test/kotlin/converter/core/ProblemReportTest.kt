@@ -19,6 +19,7 @@ class ProblemReportTest {
         receipt = false,
         rates = RateTable("USD", mapOf("USD" to 1.0, "ARS" to 1000.0), fetchedAt = 42),
         ratesFetchedAt = "2026-09-29 11:40",
+        ratesPublishedAt = "2026-09-29 00:02",
         lines = listOf(
             OcrLine("$ 3.648,75", 0.91, Box(212.0, 340.4, 388.0, 391.6)),
             OcrLine("PECHUGAS ", 0.5, null),
@@ -39,7 +40,7 @@ class ProblemReportTest {
     fun `says what the currencies were and where each came from`() {
         assertContains(text, "prices in: ARS (detected ARS)")
         assertContains(text, "convert into: USD (detected nothing)")
-        assertContains(text, "fetched 2026-09-29 11:40, 1 ARS = 0.001 USD")
+        assertContains(text, "published 2026-09-29 00:02, fetched 2026-09-29 11:40, 1 ARS = 0.001 USD")
     }
 
     @Test

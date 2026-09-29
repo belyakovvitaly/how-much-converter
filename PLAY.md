@@ -293,7 +293,7 @@ above, and do not send a claim the test did not bear out.
 > • Reads on your phone. The text recognition runs on the device — nothing is
 > uploaded to read a picture, and it works offline once the exchange rates
 > have been fetched. Rates come from a public exchange-rate service and are
-> refreshed every six hours.
+> updated once a day.
 > • Keep it. Save the converted picture to your gallery, labels and all.
 > • Tell us when it is wrong. From any picture, Report prepares a message with
 > the photo and what the app read from it, and opens your mail app; nothing is

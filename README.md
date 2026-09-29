@@ -73,7 +73,7 @@ converting the local currency into itself would be no help at all.
 
 Everything that reads runs on the phone: PP-OCRv5's mobile models through ONNX
 Runtime, with no account and no key. The only thing that leaves it is a request
-for the rate table, cached for six hours — never a picture, and nothing about
+for the rate table, about once a day — never a picture, and nothing about
 where you are.
 
 Which recognizer, and why, was settled by measurement rather than by reading
@@ -91,8 +91,8 @@ under a tag beginning `android-`.
 1. Download `how-much-android-<version>.apk` onto the phone.
 2. Open it. Android will ask whether to allow installing apps from wherever you
    downloaded it; that permission is per-app and can be turned off again after.
-3. Allow the camera when it asks. The rates need the network once every six
-   hours; nothing else leaves the phone, except a problem report you send
+3. Allow the camera when it asks. The rates need the network about once a
+   day; nothing else leaves the phone, except a problem report you send
    yourself from your mail app.
 
 Worth knowing:
@@ -153,7 +153,7 @@ GitHub release.
 
 | Part | File | Responsibility |
 | --- | --- | --- |
-| Rates | `extension/src/background.js` | Fetches a USD-based rate table from [open.er-api.com](https://open.er-api.com) and caches it in `chrome.storage.local` for 6 hours. All pairs are derived as cross rates. |
+| Rates | `extension/src/background.js` | Fetches a USD-based rate table from [open.er-api.com](https://open.er-api.com) and caches it in `chrome.storage.local` until the service publishes the next day's table — never less than 6 hours. All pairs are derived as cross rates. The popup credits the service, as its free access requires. |
 | Detection | `extension/src/currency.js` | Symbol/ISO-code tables and a locale-aware number parser (`1 234,56` vs `1,234.56` vs `1'234.56`). |
 | Which currency a page is in | `extension/src/currency.js` | `priceCurrency` markup first, then the ccTLD, then the `lang` attribute — and where the first two disagree, the language breaks the tie. This is what makes a shared symbol readable. |
 | Page changes | `extension/src/content.js` | Two passes — text nodes that hold a whole price, then shallow elements that spread one across children — marking each price `data-hmc`, showing its conversion beside it, in its place or on hover, and re-scanning on DOM mutations. |

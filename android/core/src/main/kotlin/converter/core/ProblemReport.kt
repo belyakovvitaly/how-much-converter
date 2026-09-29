@@ -29,6 +29,8 @@ data class ProblemReport(
     val rates: RateTable?,
     /** When the rates were fetched, formatted by the caller, as [writtenAt] is. */
     val ratesFetchedAt: String?,
+    /** When the service published those rates, formatted likewise; null if it did not say. */
+    val ratesPublishedAt: String? = null,
     val lines: List<OcrLine>,
     val prices: List<LocatedPrice>,
     /** What the reader said was wrong, if anything. */
@@ -53,7 +55,9 @@ fun problemReportText(report: ProblemReport): String = buildString {
     val rates = report.rates
     appendLine(
         if (rates == null) "rates: none"
-        else "rates: ${rates.base}-based, fetched ${report.ratesFetchedAt ?: "at ${rates.fetchedAt} (epoch ms)"}" +
+        else "rates: ${rates.base}-based" +
+            (report.ratesPublishedAt?.let { ", published $it" } ?: "") +
+            ", fetched ${report.ratesFetchedAt ?: "at ${rates.fetchedAt} (epoch ms)"}" +
             pairRate(rates, report.source, report.target)
     )
     appendLine()

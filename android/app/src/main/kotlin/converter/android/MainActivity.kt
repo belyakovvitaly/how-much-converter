@@ -315,6 +315,7 @@ class MainActivity : ComponentActivity() {
                             receipt = receipt,
                             rates = rates,
                             ratesFetchedAt = rates?.let { stamp.format(Date(it.fetchedAt)) },
+                            ratesPublishedAt = rates?.updatedAt?.let { stamp.format(Date(it)) },
                             lines = read.lines,
                             prices = prices,
                             note = note,

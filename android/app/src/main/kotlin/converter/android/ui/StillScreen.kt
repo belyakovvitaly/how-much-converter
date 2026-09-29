@@ -183,21 +183,28 @@ fun StillScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(
-                text = when (still) {
-                    is Still.Working -> "Reading…"
-                    is Still.Failed -> still.reason
-                    is Still.Read -> when {
-                        receipt && source == null -> "Choose the receipt's currency"
-                        target == null -> "Choose what to convert into"
-                        prices.isEmpty() -> "No price found"
-                        prices.size == 1 -> "1 price converted"
-                        else -> "${prices.size} prices converted"
-                    }
-                },
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    modifier = Modifier.weight(1f),
+                    text = when (still) {
+                        is Still.Working -> "Reading…"
+                        is Still.Failed -> still.reason
+                        is Still.Read -> when {
+                            receipt && source == null -> "Choose the receipt's currency"
+                            target == null -> "Choose what to convert into"
+                            prices.isEmpty() -> "No price found"
+                            prices.size == 1 -> "1 price converted"
+                            else -> "${prices.size} prices converted"
+                        }
+                    },
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                // The labels on the picture are the service's rates.
+                if (still is Still.Read && rates != null && target != null) {
+                    RatesAttribution(Modifier.padding(start = 8.dp))
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CurrencyBar(source, target, onChangeSource, onChangeTarget)
                 Spacer(Modifier.weight(1f))

@@ -46,6 +46,33 @@ class RatesTest {
         assertTrue(!table.isFresh(table.fetchedAt + RATES_MAX_AGE_MILLIS))
     }
 
+    private val hour = 60 * 60 * 1000L
+
+    @Test
+    fun `with a schedule, a table stays fresh until the next publication`() {
+        // Fetched just after the day's rates came out; the next are 20 h away.
+        val scheduled = table.copy(nextUpdateAt = table.fetchedAt + 20 * hour)
+        assertTrue(scheduled.isFresh(table.fetchedAt + 7 * hour))
+        assertTrue(scheduled.isFresh(table.fetchedAt + 20 * hour - 1))
+        assertTrue(!scheduled.isFresh(table.fetchedAt + 20 * hour))
+    }
+
+    @Test
+    fun `a schedule never makes a table stale sooner than six hours`() {
+        // The next publication ten minutes after fetching must not send every
+        // user back to the network ten minutes later.
+        val soon = table.copy(nextUpdateAt = table.fetchedAt + 10 * 60 * 1000)
+        assertTrue(soon.isFresh(table.fetchedAt + 5 * hour))
+        assertTrue(!soon.isFresh(table.fetchedAt + RATES_MAX_AGE_MILLIS))
+    }
+
+    @Test
+    fun `a schedule that slips is not trusted past a day and a half`() {
+        val slipped = table.copy(nextUpdateAt = table.fetchedAt + 100 * hour)
+        assertTrue(slipped.isFresh(table.fetchedAt + RATES_LONGEST_WAIT_MILLIS - 1))
+        assertTrue(!slipped.isFresh(table.fetchedAt + RATES_LONGEST_WAIT_MILLIS))
+    }
+
     @Test
     fun `a table fetched in the future is not treated as fresh`() {
         // A clock that jumped backwards should send us to the network, not
@@ -54,6 +81,26 @@ class RatesTest {
     }
 
     // --- parsing ------------------------------------------------------------
+    @Test
+    fun `reads when the rates were published and when the next are due`() {
+        val json = """
+            {"result":"success","base_code":"USD",
+             "time_last_update_unix":1790640151,"time_next_update_unix":1790728381,
+             "rates":{"USD":1,"ARS":1528.7563}}
+        """.trimIndent()
+        val parsed = parseRatesResponse(json, fetchedAt = 5)!!
+        assertEquals(1790640151000L, parsed.updatedAt)
+        assertEquals(1790728381000L, parsed.nextUpdateAt)
+        assertEquals(5L, parsed.fetchedAt)
+    }
+
+    @Test
+    fun `a response without a schedule has none`() {
+        val parsed = parseRatesResponse(goodResponse, fetchedAt = 5)!!
+        assertNull(parsed.updatedAt)
+        assertNull(parsed.nextUpdateAt)
+    }
+
     private val goodResponse = """
         {"result":"success","base_code":"USD",
          "rates":{"USD":1,"EUR":0.92,"RUB":92.0}}

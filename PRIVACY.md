@@ -58,7 +58,8 @@ never transmitted, stored, or logged.
 
 The extension makes exactly one kind of request: it fetches a public,
 USD-based exchange-rate table from `https://open.er-api.com`, at most once every
-six hours, or when you press **Refresh**.
+six hours — usually once a day, when the service publishes new rates — or when
+you press **Refresh**.
 
 That request carries no identifier, no API key, no page address, and nothing
 about what you were looking at — it is the same request for every user. As with
@@ -107,7 +108,8 @@ can set either currency by hand instead.
 
 The app makes one kind of request by itself, the same one the extension makes:
 it fetches the public, USD-based exchange-rate table from
-`https://open.er-api.com`, at most once every six hours. It carries no
+`https://open.er-api.com`, at most once every six hours, and usually once a
+day, when the service publishes new rates. It carries no
 identifier and nothing about you or your pictures — it is the same request for
 every user. The operator of that service can see the IP address it came from;
 their terms are at [open.er-api.com](https://open.er-api.com).

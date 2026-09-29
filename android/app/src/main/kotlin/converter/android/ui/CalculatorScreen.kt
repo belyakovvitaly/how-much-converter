@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -216,11 +217,12 @@ private fun AmountRow(
 }
 
 /**
- * What one unit is worth, and how old the rates are — or why there is nothing
- * to convert with.
+ * What one unit is worth, and which day's rates those are — or why there is
+ * nothing to convert with — and where the rates come from.
  */
 @Composable
 private fun RateLine(rates: RateTable?, source: String?, target: String?) {
+    val context = LocalContext.current
     val text = when {
         source == null -> "Choose what the prices are in"
         target == null -> "Choose what to convert into"
@@ -235,19 +237,32 @@ private fun RateLine(rates: RateTable?, source: String?, target: String?) {
                 oneSource != null -> "1 $source = ${formatAmount(oneSource, target)} $target"
                 else -> null
             }
-            val age = DateUtils.getRelativeTimeSpanString(
+            // The service publishes once a day, so the day it did is what
+            // says how current a rate is; when it was downloaded says nothing.
+            // A table cached before that was read has only the download time.
+            val age = rates.updatedAt?.let {
+                "rates of " + DateUtils.formatDateTime(
+                    context, it,
+                    DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or DateUtils.FORMAT_NO_YEAR,
+                )
+            } ?: ("updated " + DateUtils.getRelativeTimeSpanString(
                 rates.fetchedAt, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS,
-            )
-            if (rate == null) "No rate for this pair" else "$rate · updated $age"
+            ))
+            if (rate == null) "No rate for this pair" else "$rate · $age"
         }
     }
-    Text(
-        text = text,
-        color = if (rates == null || source == null || target == null) Color(0xFFFFB74D) else Color(0xFF9E9E9E),
-        style = MaterialTheme.typography.bodyMedium,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-    )
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = text,
+            color = if (rates == null || source == null || target == null) Color(0xFFFFB74D) else Color(0xFF9E9E9E),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+        )
+        if (rates != null) RatesAttribution()
+    }
 }
 
 @Composable

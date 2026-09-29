@@ -105,7 +105,13 @@
       return;
     }
     const flag = ratesCache.stale ? " (stale)" : "";
-    els.status.textContent = `Rates updated ${ago(ratesCache.fetchedAt)}${flag}`;
+    // The service publishes once a day, so the day it did says how current a
+    // rate is; when it was downloaded says nothing. A cache from before that
+    // was kept has only the download time.
+    const when = ratesCache.updatedAt
+      ? `of ${new Date(ratesCache.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
+      : `updated ${ago(ratesCache.fetchedAt)}`;
+    els.status.textContent = `Rates ${when}${flag}`;
   }
 
   async function load() {

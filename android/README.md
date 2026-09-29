@@ -289,9 +289,30 @@ two steady answers is true.
 
 ## Rates
 
-One USD-based table from [open.er-api.com](https://open.er-api.com), cached for
-six hours, every pair derived from it as a cross rate — the same arrangement
+One USD-based table from [open.er-api.com](https://open.er-api.com), every pair
+derived from it as a cross rate — the same arrangement
 `extension/src/background.js` uses, and the same free service.
+
+**Once a day, not every six hours.** The service publishes a new table daily
+and says when the next is due (`time_next_update_unix`); asking before then
+fetches the same table again. So a table is kept for six hours whatever
+happens — what the privacy policy promises — and after that until the next
+publication, but never past a day and a half, in case the schedule slips.
+Without a schedule, six hours is the rule, as before. [`isFresh`](core/src/main/kotlin/converter/core/Rates.kt)
+holds it, and the extension's `background.js` has the same rule.
+
+**Which day, not how long ago.** The calculator says "rates of Sep 29": the day
+the service published them is what says how current a rate is; when this phone
+downloaded them says nothing. A table cached before that was read shows the
+download time instead.
+
+**The credit is required.** The service's free access asks for a link,
+"Rates By Exchange Rate API", wherever its rates are used, and may cut off
+access without it. It sits under the rate in the calculator and beside the
+count on a picture's screen, and in the extension's popup. Its terms allow
+commercial use and caching on the device; they do not allow passing the table
+on, and they recommend against using the rates for actual transactions — a
+guide to what something costs, not a quote.
 
 The policy lives in `:core` as [`resolveRates`](core/src/main/kotlin/converter/core/Rates.kt),
 which takes the fetch as an argument rather than performing it. That is what

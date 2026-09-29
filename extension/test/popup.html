@@ -26,7 +26,8 @@
         enabled: true,
         targetCurrency: "EUR",
         dollarAssumption: "auto",
-        ratesCache: { fetchedAt: Date.now() - 3600000, stale: false },
+        ratesCache: { fetchedAt: Date.now() - 3600000, stale: false,
+                      updatedAt: Date.UTC(2026, 8, 29, 12, 0), nextUpdateAt: Date.UTC(2026, 8, 30, 0, 33) },
         reports: [],
       };
       window.chrome = {
@@ -126,6 +127,11 @@
         check("…and the list goes with the last one", $("excludedList").hidden, true);
 
         check("the report button is the new one", $("report").textContent.trim(), "It didn't work here");
+        check("the rates say which day they are of",
+          /^Rates of (29 Sept?|Sept? 29)$/.test($("ratesStatus").textContent), true);
+        check("the rate service is credited, as its free access asks",
+          $("ratesSource").textContent.trim(), "Rates By Exchange Rate API");
+        check("…with a link to it", $("ratesSource").href, "https://www.exchangerate-api.com/");
 
         // Flags. The table is checked on its own, whatever the system can draw;
         // the rows are checked only where flags are drawn (not on Windows).
