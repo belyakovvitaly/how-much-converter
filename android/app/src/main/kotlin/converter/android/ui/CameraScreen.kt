@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.util.Size
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -31,8 +32,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -75,17 +78,22 @@ data class FrameState(
 )
 
 /**
- * Live camera with the price rules attached.
+ * The camera: a viewfinder and a shutter, and the photograph is read once it
+ * is taken.
  *
- * Frames are analysed on a single background thread with only the newest kept:
- * recognition costs hundreds of milliseconds, so a queue would only build a
- * backlog of stale frames. There is no attempt at 30fps, and there should not
- * be — the benchmark put PaddleOCR's mobile configuration near 800ms a frame on
- * a desktop CPU.
+ * With [live] on, every frame is read as well and the conversions are drawn
+ * over the viewfinder. That is switched off for now, and kept rather than
+ * removed. Frames are then analysed on a single background thread with only the
+ * newest kept: recognition costs hundreds of milliseconds, so a queue would
+ * only build a backlog of stale frames. There is no attempt at 30fps, and there
+ * should not be — the benchmark put PaddleOCR's mobile configuration near 800ms
+ * a frame on a desktop CPU.
  */
 @Composable
 fun CameraScreen(
     engine: OcrEngine,
+    /** Read the viewfinder frame by frame, not only the photograph. */
+    live: Boolean,
     rates: RateTable?,
     /** What the prices in view are in; null when the place is unknown. */
     source: String?,
@@ -96,8 +104,10 @@ fun CameraScreen(
     /** A photograph taken here, already the right way up. */
     onPhoto: (Bitmap) -> Unit = {},
     onPickFromGallery: () -> Unit = {},
+    onClose: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    BackHandler(onBack = onClose)
     val context = LocalContext.current
     var granted by remember {
         mutableStateOf(
@@ -112,24 +122,39 @@ fun CameraScreen(
     Box(modifier.fillMaxSize().background(Color.Black)) {
         if (granted) {
             var frame by remember { mutableStateOf(FrameState()) }
+            // Between the shutter and the picture there is a noticeable
+            // moment; the shutter says it heard, and does not take a second.
+            var capturing by remember { mutableStateOf(false) }
             val capture = remember { ImageCapture.Builder().build() }
-            CameraPreview(engine, source, capture) { frame = it }
-            PriceOverlay(
-                prices = frame.prices,
-                imageWidth = frame.imageWidth,
-                imageHeight = frame.imageHeight,
-                rates = rates,
-                target = target,
-            )
+            CameraPreview(engine, source, capture, live) { frame = it }
+            if (live) {
+                PriceOverlay(
+                    prices = frame.prices,
+                    imageWidth = frame.imageWidth,
+                    imageHeight = frame.imageHeight,
+                    rates = rates,
+                    target = target,
+                )
+            }
             ReadingPanel(
                 engine = engine,
+                live = live,
                 frame = frame,
                 rates = rates,
                 source = source,
                 target = target,
+                capturing = capturing,
                 onChangeSource = onChangeSource,
                 onChangeTarget = onChangeTarget,
-                onPhoto = { takePhoto(capture, context, onPhoto) },
+                onPhoto = {
+                    if (!capturing) {
+                        capturing = true
+                        takePhoto(capture, context) { photo ->
+                            capturing = false
+                            photo?.let(onPhoto)
+                        }
+                    }
+                },
                 onPickFromGallery = onPickFromGallery,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
@@ -140,7 +165,15 @@ fun CameraScreen(
             )
         }
 
-        VersionLabel(Modifier.align(Alignment.TopEnd))
+        BackButton(
+            onClick = onClose,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Start)
+                )
+                .padding(8.dp),
+        )
     }
 }
 
@@ -149,7 +182,7 @@ fun CameraScreen(
  * say which version it was about.
  */
 @Composable
-private fun VersionLabel(modifier: Modifier = Modifier) {
+internal fun VersionLabel(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val version = remember {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
@@ -170,6 +203,7 @@ private fun CameraPreview(
     engine: OcrEngine,
     source: String?,
     capture: ImageCapture,
+    live: Boolean,
     onFrame: (FrameState) -> Unit,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -268,12 +302,15 @@ private fun CameraPreview(
                 }
 
                 provider.unbindAll()
+                // Without live reading there is nothing to analyse, and an
+                // analyser bound anyway would spend the battery on frames
+                // nobody looks at.
+                val useCases = if (live) arrayOf(preview, analysis, capture)
+                               else arrayOf(preview, capture)
                 provider.bindToLifecycle(
                     lifecycleOwner,
                     CameraSelector.DEFAULT_BACK_CAMERA,
-                    preview,
-                    analysis,
-                    capture,
+                    *useCases,
                 )
             }, ContextCompat.getMainExecutor(ctx))
             previewView
@@ -284,10 +321,12 @@ private fun CameraPreview(
 @Composable
 private fun ReadingPanel(
     engine: OcrEngine,
+    live: Boolean,
     frame: FrameState,
     rates: RateTable?,
     source: String?,
     target: String?,
+    capturing: Boolean,
     onChangeSource: () -> Unit,
     onChangeTarget: () -> Unit,
     onPhoto: () -> Unit,
@@ -305,7 +344,16 @@ private fun ReadingPanel(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Status(frame = frame, rates = rates, engine = engine, target = target)
+        if (live) {
+            Status(frame = frame, rates = rates, engine = engine, target = target)
+        } else {
+            Text(
+                text = if (target == null) "Choose what to convert into"
+                       else "Take a photo of the prices",
+                color = if (target == null) Color(0xFFFFB74D) else Color(0xFFBDBDBD),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
         CurrencyBar(
             source = source,
             target = target,
@@ -314,7 +362,14 @@ private fun ReadingPanel(
         )
         Box(Modifier.fillMaxWidth()) {
             GalleryButton(onPickFromGallery, Modifier.align(Alignment.CenterStart))
-            ShutterButton(onPhoto, Modifier.align(Alignment.Center))
+            if (capturing) {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.Center).size(72.dp).padding(8.dp),
+                )
+            } else {
+                ShutterButton(onPhoto, Modifier.align(Alignment.Center))
+            }
         }
     }
 }
@@ -431,7 +486,7 @@ private fun PermissionPrompt(onAsk: () -> Unit, modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "How Much? reads prices through the camera.",
+            text = "How Much? needs the camera to photograph prices.",
             color = Color.White,
             style = MaterialTheme.typography.bodyLarge,
         )
@@ -458,7 +513,7 @@ private fun Bitmap.upright(degrees: Int): Bitmap {
 }
 
 /**
- * Takes a still and hands it over upright.
+ * Takes a still and hands it over upright, or null if the camera failed.
  *
  * The same rotation the analyser needs: a captured frame carries the sensor's
  * orientation rather than the phone's, and text lying on its side reads as
@@ -467,7 +522,7 @@ private fun Bitmap.upright(degrees: Int): Bitmap {
 private fun takePhoto(
     capture: ImageCapture,
     context: android.content.Context,
-    onPhoto: (Bitmap) -> Unit,
+    onPhoto: (Bitmap?) -> Unit,
 ) {
     capture.takePicture(
         ContextCompat.getMainExecutor(context),
@@ -483,6 +538,7 @@ private fun takePhoto(
 
             override fun onError(exception: ImageCaptureException) {
                 android.util.Log.e("HowMuch", "could not take a photograph", exception)
+                onPhoto(null)
             }
         },
     )

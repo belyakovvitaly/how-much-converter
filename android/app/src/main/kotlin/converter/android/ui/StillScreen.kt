@@ -65,8 +65,8 @@ sealed interface Still {
  *
  * Pinch or double tap to zoom; the labels are magnified with the picture.
  *
- * Back — the arrow, or the system's gesture — returns to the camera. Only the
- * camera itself lets back close the app.
+ * Back — the arrow, or the system's gesture — returns to the screen the
+ * picture was opened from: the camera, for another photo, or the home screen.
  *
  * **Receipt** is for a picture whose amounts carry no currency, as a shop's
  * receipt does: with it on, every number written to the cent is taken to be in

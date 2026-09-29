@@ -125,6 +125,16 @@ fun resolveRates(
 private val ZERO_DECIMAL = setOf("CLP", "IDR", "JPY", "KRW", "PYG", "VND")
 
 /**
+ * How many decimals a converted amount is shown with: cents below 100, none
+ * above, and never more precision than the currency itself has.
+ */
+fun convertedDigits(amount: Double, code: String): Int = when {
+    code in ZERO_DECIMAL -> 0
+    abs(amount) >= 100 -> 0
+    else -> 2
+}
+
+/**
  * Formats a converted amount the way the extension does: cents below 100, none
  * above, and never more precision than the currency itself has.
  *
@@ -132,11 +142,7 @@ private val ZERO_DECIMAL = setOf("CLP", "IDR", "JPY", "KRW", "PYG", "VND")
  * this layer has no locale.
  */
 fun formatConverted(amount: Double, code: String): String {
-    val digits = when {
-        code in ZERO_DECIMAL -> 0
-        abs(amount) >= 100 -> 0
-        else -> 2
-    }
+    val digits = convertedDigits(amount, code)
     // The sign is written separately: a discount of half a unit has no whole
     // part to carry it.
     val size = abs(amount)

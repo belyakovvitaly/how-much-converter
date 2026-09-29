@@ -4,10 +4,11 @@ Two modules. `:core` holds the price rules — what counts as a currency token,
 how a number is spelled, which frames agree — and is the part iOS will share.
 `:app` is the camera and the recognizer around them.
 
-It reads prices off a live camera and shows them converted. What it has not yet
-had is a day in a real shop: everything below was measured on fixed images and
-an emulator, and the parts built around movement — frame voting, box tracking —
-have never met any.
+It converts prices two ways: typed into a calculator, or read from a picture —
+a photo taken in the app, or one chosen from the gallery. It can also read a
+live camera, but that is switched off for now (see below); the parts built
+around movement — frame voting, box tracking — are kept, and have never met a
+real shop.
 
 ```sh
 ./gradlew :core:test        # the price rules, against the benchmark's numbers
@@ -53,22 +54,51 @@ an Apple Silicon Mac. An Intel-host emulator would need `x86_64` adding back in
 
 ## What `:app` does today
 
-Camera preview, frames analysed one at a time on a background thread with only
-the newest kept, each one passed through [`OcrEngine`](app/src/main/kotlin/converter/android/ocr/OcrEngine.kt)
-and then through `:core`, with the conversions drawn over the prices themselves.
+The app opens on a home screen: the two currencies as `ARS → USD`, each side
+opening a picker, and the ways to get an amount into them — **Calculator**, and
+under "From a picture", **Camera** and **Gallery**. All three share the same
+two currencies, so choosing one anywhere changes it everywhere.
 
-Under the viewfinder: one line saying what came of the last look, the two
-currencies as `ARS → USD` with each side opening a picker, and a shutter and a
-gallery button. Nothing about frames, milliseconds or which engine is running —
-that belongs in a test, and is where the engine's own `timings` report it. The
-two icons are drawn rather than imported: Material's extended set is several
-megabytes for the sake of a circle and a picture frame.
+**Camera** is a viewfinder, a shutter and a gallery button, and nothing is read
+until the shutter is pressed. The photograph is then read thoroughly, the same
+as a gallery picture (see below), and shown with the conversions on it; back
+returns to the viewfinder for another.
 
-The version sits in the top corner in small grey type, so a report from a shop
-can say which build it was about.
+**Live reading is off, not gone.** With `LIVE_RECOGNITION` in `MainActivity`
+set to true, the camera also reads its viewfinder frame by frame through
+[`OcrEngine`](app/src/main/kotlin/converter/android/ocr/OcrEngine.kt) and
+`:core`, and draws the conversions over the live picture, with one line under
+it saying what came of the last look. Off, the analyser is not bound at all, so
+no frame is read and no battery spent on it. The sections below on what a frame
+costs, box tracking and frame voting describe that mode.
 
-The engine says when it is not ready yet, and the panel says "Starting…" rather
-than reporting no price in view about a price plainly in view.
+The icons are drawn rather than imported: Material's extended set is several
+megabytes for the sake of a circle, a picture frame, a camera and a calculator.
+
+The version sits in the top corner of the home screen in small grey type, so a
+report from a shop can say which build it was about.
+
+A picture that arrives before the models have loaded waits for them, rather
+than being reported as having no price in it.
+
+## The calculator
+
+Two rows, one per currency, and a keypad. Either row can be typed into: tap the
+other one and it becomes the one being typed, starting from the amount it
+showed, so a digit replaces that amount and an operator carries on from it. The
+keys do arithmetic — `+ − × ÷`, times and divide first — for three of
+something or a few prices added up, and the result shows under the sum as it
+is typed.
+
+Under the rows, what one unit is worth, whichever way round gives a number above
+one (`1 USD = 1,529 ARS`, not `1 ARS = 0.00065 USD`), and how old the rates are:
+offline, yesterday's table is still used, and the reader should know it is
+yesterday's. A division by zero, or a result too large to be an amount anyone
+meant, is no amount rather than infinity.
+
+The arithmetic is [`Calculation`](core/src/main/kotlin/converter/core/Calculator.kt)
+in `:core`, with the point always a point; the screen shows the locale's own
+separators, and the key is labelled with the locale's decimal mark.
 
 The picker shows a flag beside each currency. They are emoji — two regional
 indicator letters, drawn by the phone — so there are no images to bundle and

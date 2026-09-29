@@ -31,7 +31,9 @@ import converter.android.ocr.StillImages
 import converter.android.ocr.UnwiredEngine
 import converter.android.rates.RatesRepository
 import converter.android.rates.CurrencyStore
+import converter.android.ui.CalculatorScreen
 import converter.android.ui.CameraScreen
+import converter.android.ui.HomeScreen
 import converter.android.ui.CurrencyPicker
 import converter.android.ui.GalleryScreen
 import converter.android.ui.embeddedPickerAvailable
@@ -78,6 +80,7 @@ class MainActivity : ComponentActivity() {
                     var still by remember { mutableStateOf<Still?>(null) }
                     var receipt by rememberSaveable { mutableStateOf(false) }
                     var browsing by remember { mutableStateOf(false) }
+                    var screen by rememberSaveable { mutableStateOf(Screen.Home) }
                     val scope = rememberCoroutineScope()
 
                     // What the prices are in, and what to turn them into. Not
@@ -92,8 +95,8 @@ class MainActivity : ComponentActivity() {
                     )
 
                     // Reading two ONNX models out of assets costs a second or
-                    // more; the camera starts without waiting for it, and the
-                    // panel says which engine is running meanwhile.
+                    // more; nothing waits for it but a picture to read, and
+                    // that waits in read() below.
                     LaunchedEffect(Unit) {
                         engine = withContext(Dispatchers.IO) {
                             runCatching { PaddleOnnxEngine.create(context) }
@@ -177,18 +180,46 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    CameraScreen(
-                        engine = engine,
-                        rates = rates,
-                        source = source,
-                        target = target,
-                        onChangeSource = { picking = Picking.Source },
-                        onChangeTarget = { picking = Picking.Target },
-                        onPhoto = { read(it) },
-                        onPickFromGallery = {
-                            if (embeddedPickerAvailable()) browsing = true else pickStandalone()
-                        },
-                    )
+                    fun pickFromGallery() {
+                        if (embeddedPickerAvailable()) browsing = true else pickStandalone()
+                    }
+
+                    // A picture opened from here is shown over whichever
+                    // screen it was opened from, and back returns to it: to
+                    // the camera for another photo, or home.
+                    when (screen) {
+                        Screen.Home -> HomeScreen(
+                            source = source,
+                            target = target,
+                            onChangeSource = { picking = Picking.Source },
+                            onChangeTarget = { picking = Picking.Target },
+                            onCalculator = { screen = Screen.Calculator },
+                            onCamera = { screen = Screen.Camera },
+                            onGallery = ::pickFromGallery,
+                        )
+
+                        Screen.Calculator -> CalculatorScreen(
+                            rates = rates,
+                            source = source,
+                            target = target,
+                            onChangeSource = { picking = Picking.Source },
+                            onChangeTarget = { picking = Picking.Target },
+                            onClose = { screen = Screen.Home },
+                        )
+
+                        Screen.Camera -> CameraScreen(
+                            engine = engine,
+                            live = LIVE_RECOGNITION,
+                            rates = rates,
+                            source = source,
+                            target = target,
+                            onChangeSource = { picking = Picking.Source },
+                            onChangeTarget = { picking = Picking.Target },
+                            onPhoto = { read(it) },
+                            onPickFromGallery = ::pickFromGallery,
+                            onClose = { screen = Screen.Home },
+                        )
+                    }
 
                     if (browsing && embeddedPickerAvailable()) {
                         GalleryScreen(
@@ -293,7 +324,19 @@ class MainActivity : ComponentActivity() {
     /** Which of the two currencies the picker is open for. */
     private enum class Picking { Source, Target }
 
+    /** The screen under any picture being shown. */
+    private enum class Screen { Home, Calculator, Camera }
+
     private companion object {
         const val TAG = "HowMuch"
+
+        /**
+         * Whether the camera reads its viewfinder as it goes, drawing the
+         * conversions over the live picture, rather than only the photograph
+         * once it is taken. Off for now; everything it needs is kept —
+         * frame voting, box tracking, the per-frame budget — so turning it
+         * back on is this one line.
+         */
+        const val LIVE_RECOGNITION = false
     }
 }

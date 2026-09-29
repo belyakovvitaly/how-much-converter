@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 
 // The controls are drawn rather than imported. Material's extended icon set is
 // several megabytes for the sake of a few glyphs, and these are a circle, a
-// picture frame and an arrow.
+// picture frame, a camera, a calculator and an arrow.
 
 /** The shutter: a white disc inside a thin ring, as every camera app has. */
 @Composable
@@ -46,12 +46,18 @@ fun ShutterButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
 /** A picture: the frame, a sun in one corner, a hill across the bottom. */
 @Composable
 fun GalleryButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Canvas(
+    GalleryIcon(
         modifier
             .size(52.dp)
             .clip(CircleShape)
             .clickable(onClick = onClick)
-    ) {
+    )
+}
+
+/** The gallery's picture on its own, for a button that carries a label too. */
+@Composable
+fun GalleryIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
         val stroke = 2.dp.toPx()
         val inset = size.minDimension * 0.24f
         val side = size.minDimension - inset * 2
@@ -80,6 +86,76 @@ fun GalleryButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
             lineTo(inset + side - stroke / 2, bottom)
         }
         drawPath(hill, color = Color.White, style = Stroke(width = stroke))
+    }
+}
+
+/** A camera: a body with a bump on top and a lens in the middle. */
+@Composable
+fun CameraIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = 2.dp.toPx()
+        val s = size.minDimension
+        val body = Path().apply {
+            moveTo(s * 0.2f, s * 0.36f)
+            lineTo(s * 0.36f, s * 0.36f)
+            lineTo(s * 0.41f, s * 0.28f)
+            lineTo(s * 0.59f, s * 0.28f)
+            lineTo(s * 0.64f, s * 0.36f)
+            lineTo(s * 0.8f, s * 0.36f)
+            lineTo(s * 0.8f, s * 0.72f)
+            lineTo(s * 0.2f, s * 0.72f)
+            close()
+        }
+        drawPath(
+            body,
+            color = Color.White,
+            style = Stroke(width = stroke, join = StrokeJoin.Round),
+        )
+        drawCircle(
+            color = Color.White,
+            radius = s * 0.11f,
+            center = Offset(s * 0.5f, s * 0.53f),
+            style = Stroke(width = stroke),
+        )
+    }
+}
+
+/** A calculator: a case, its display, and three rows of keys. */
+@Composable
+fun CalculatorIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val stroke = 2.dp.toPx()
+        val s = size.minDimension
+        val left = s * 0.3f
+        val top = s * 0.22f
+        val width = s * 0.4f
+        val height = s * 0.56f
+        drawRoundRect(
+            color = Color.White,
+            topLeft = Offset(left, top),
+            size = Size(width, height),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(s * 0.05f),
+            style = Stroke(width = stroke),
+        )
+        drawLine(
+            color = Color.White,
+            start = Offset(left + width * 0.22f, top + height * 0.22f),
+            end = Offset(left + width * 0.78f, top + height * 0.22f),
+            strokeWidth = stroke,
+            cap = StrokeCap.Round,
+        )
+        for (row in 0 until 3) {
+            for (column in 0 until 3) {
+                drawCircle(
+                    color = Color.White,
+                    radius = s * 0.022f,
+                    center = Offset(
+                        left + width * (0.25f + 0.25f * column),
+                        top + height * (0.45f + 0.17f * row),
+                    ),
+                )
+            }
+        }
     }
 }
 
