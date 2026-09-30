@@ -28,6 +28,14 @@ h1 {
   font-size: 15px;
 }
 
+/* `hidden` has to win over any display set below. Without this, .row's flex
+   showed the site row on pages the extension does not run on — a new tab, the
+   store, a tab not reloaded since an update — as an empty name and an empty
+   button. */
+[hidden] {
+  display: none !important;
+}
+
 .row {
   display: flex;
   align-items: center;

@@ -173,6 +173,22 @@
           u.startsWith("https://github.com/belyakovvitaly/how-much-converter/issues/new") &&
           decodeURIComponent(u).includes("Bs21,50"));
 
+        // With the popup's own stylesheet, since that is where this went
+        // wrong: `hidden` was set, and .row's display showed the row anyway —
+        // an empty name and an empty button on pages the extension cannot run
+        // on. What is asked is what is on screen, not what the attribute says.
+        const sheet = document.createElement("link");
+        sheet.rel = "stylesheet";
+        sheet.href = "../src/popup.css";
+        await new Promise((done) => { sheet.onload = done; document.head.appendChild(sheet); });
+        const shown = (id) => getComputedStyle($(id)).display !== "none";
+        check("the site row is on screen for a page with a site", shown("site"), true);
+        $("site").hidden = true;
+        check("…and gone, button and all, where there is none", shown("site"), false);
+        check("…as is its button", $("siteToggle").getClientRects().length, 0);
+        $("site").hidden = false;
+        sheet.remove();
+
         let fail = 0;
         const lines = checks.map(([name, got, want, ok]) => {
           if (!ok) fail++;
