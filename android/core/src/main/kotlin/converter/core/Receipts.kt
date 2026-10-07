@@ -12,9 +12,10 @@
 //
 // Except where there are no cents to write. A Chilean receipt says `8.990` and
 // `24.040`: pesos, grouped by thousands. For a currency with no minor unit a
-// whole number counts too, but only one long enough to need its thousands
-// separator — `990` is as likely a count or a till number as a price, and is
-// left alone.
+// whole number counts too when it is long enough to need its thousands
+// separator. A shorter one — `990` — is written exactly like a count or a till
+// number, so its text cannot decide; where it stands can. It is taken only in
+// the column of amounts, lined up with those above and below it.
 package converter.core
 
 /** An amount found without a currency, and where in the text it was written. */
@@ -87,3 +88,54 @@ fun findBareAmounts(text: String, currency: String? = null): List<BareAmount> {
         BareAmount(amount, match.range)
     }.sortedBy { it.range.first }.toList()
 }
+
+/**
+ * `990`: a whole amount under a thousand, in a currency without cents. Three
+ * digits, so a count of seven articles is not one; read only by [inAmountColumn].
+ */
+private val SHORT_WHOLE = Regex(
+    "(?<![\\p{L}\\d.,:/-])" +
+    "([-–−~]\\s?)?" +
+    "([1-9]\\d{2})" +
+    "(?![\\d.,:/%\\-–−]|\\p{L}|\\s?[xX×*](?:\\s|$)|\\s?(?i:k?g|gr|lts?|l|ml|cc|un|uds?)\\b)"
+)
+
+/**
+ * The amounts under a thousand in [text], for a currency with no minor unit;
+ * none for any other. On their own they are not evidence of anything — see
+ * [inAmountColumn].
+ */
+fun findShortWholeAmounts(text: String, currency: String?): List<BareAmount> {
+    if (currency !in ZERO_DECIMAL) return emptyList()
+    return SHORT_WHOLE.findAll(text).map { match ->
+        val magnitude = match.groupValues[2].toDouble()
+        val amount = if (match.groupValues[1].isNotEmpty()) -magnitude else magnitude
+        BareAmount(amount, match.range)
+    }.toList()
+}
+
+/**
+ * Whether [box] stands in the column of [amounts]: right-aligned with the
+ * nearest amount above it and the nearest below, as a till prints its prices.
+ *
+ * Both neighbours are needed, so a number above the first amount or below the
+ * last — a transaction number in the header, a till number at the foot — is
+ * never in the column. The edge is interpolated between them, because a
+ * receipt in a hand is turned and curled, and its column leans.
+ */
+fun inAmountColumn(box: Box, amounts: List<Box>): Boolean {
+    val y = (box.y0 + box.y1) / 2
+    fun middle(b: Box) = (b.y0 + b.y1) / 2
+    val above = amounts.filter { middle(it) < y }.maxByOrNull(::middle) ?: return false
+    val below = amounts.filter { middle(it) > y }.minByOrNull(::middle) ?: return false
+    val along = (y - middle(above)) / (middle(below) - middle(above))
+    val edge = above.x1 + (below.x1 - above.x1) * along
+    return kotlin.math.abs(box.x1 - edge) <= COLUMN_TOLERANCE * box.height
+}
+
+/**
+ * How far off the column's edge a number may end, in its own heights. A digit
+ * is about half a height wide; a number out of line by one is not in the
+ * column. On the Chilean receipt the drink's `990` is off by a twentieth.
+ */
+private const val COLUMN_TOLERANCE = 0.3

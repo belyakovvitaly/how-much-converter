@@ -61,8 +61,8 @@ class ReceiptPhotoTest {
     }
 
     /**
-     * A Chilean receipt: pesos have no cents, so every amount is a whole number
-     * grouped by thousands — `8.990`, `24.040`. It arrived as a screenshot of
+     * A Chilean receipt: pesos have no cents, so every amount is a whole number,
+     * grouped by thousands — `8.990`, `24.040` — or under a thousand, `990`. It arrived as a screenshot of
      * someone's story, 923 pixels wide and tilted a few degrees, which is as
      * good as it gets; the account's name and picture and the card's digits
      * are blanked.
@@ -82,11 +82,11 @@ class ReceiptPhotoTest {
         Log.i(TAG, "lines: ${lines.map { it.text }}")
         Log.i(TAG, "amounts: $amounts")
 
-        // Every amount on it but the drink's 990, which has no separator to
-        // tell it from the article count below. The total is printed twice,
-        // and once more as the card's payment.
+        // Every amount on it. The drink's 990 has no separator, and is read
+        // because it stands in the column of the others. The total is printed
+        // twice, and once more as the card's payment.
         val printed = listOf(
-            8990.0, 5490.0, 1190.0, 1490.0, 1990.0, 3900.0,
+            8990.0, 5490.0, 1190.0, 1490.0, 990.0, 1990.0, 3900.0,
             24040.0, -24040.0, 20201.0, 3839.0, 24040.0,
         )
 

@@ -209,7 +209,7 @@ fun locatePrices(
     }
     val regex = if (homoglyphs) OCR_PRICE_REGEX else PRICE_REGEX
 
-    return runs.flatMap { run ->
+    val perRun = runs.map { run ->
         val found = findPricesWithRanges(run.text, resolved, regex)
         // A number that already has a currency keeps it; only the rest are
         // taken to be in the receipt's.
@@ -218,7 +218,21 @@ fun locatePrices(
                 .filter { amount -> found.none { it.range.overlaps(amount.range) } }
                 .map { FoundPrice(Price(it.amount, code), it.range) }
         }.orEmpty()
-        (found + bare).sortedBy { it.range.first }.map {
+        found + bare
+    }
+
+    // A short whole amount says nothing by its text; it counts only standing in
+    // the column the amounts already found make. Those alone define the
+    // column, so one short number cannot vouch for the next.
+    val column = runs.zip(perRun).flatMap { (run, found) -> found.map { run.boxFor(it.range) } }
+    return runs.zip(perRun).flatMap { (run, found) ->
+        val short = context.bareAmounts?.let { code ->
+            findShortWholeAmounts(run.text, code)
+                .filter { amount -> found.none { it.range.overlaps(amount.range) } }
+                .filter { amount -> inAmountColumn(run.boxFor(amount.range), column) }
+                .map { FoundPrice(Price(it.amount, code), it.range) }
+        }.orEmpty()
+        (found + short).sortedBy { it.range.first }.map {
             LocatedPrice(it.price, run.boxFor(it.range))
         }
     }

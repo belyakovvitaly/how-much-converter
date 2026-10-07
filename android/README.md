@@ -443,9 +443,18 @@ that are not — dates, times, weights, article codes, tax IDs:
   and its receipt says `8.990` and `24.040`. For such a currency — the ones
   `convertedDigits` already shows without cents — a whole number counts too,
   grouped the way that currency writes it: a point, or a comma for the yen and
-  the won. One with no separator at all does not: `990` is written exactly like
-  the `7` of an article count, and is left unread. Nor does a number followed
-  by a dash (`76.123.456-7`, a Chilean tax ID) or by a unit (`1.250 kg`).
+  the won. Not a number followed by a dash (`76.123.456-7`, a Chilean tax ID)
+  or by a unit (`1.250 kg`).
+- **Under a thousand, by where it stands.** `990` is written exactly like a
+  till number, so its text cannot decide. It is read when it stands in the
+  column of amounts: three digits, right-aligned with the nearest amount above
+  it and the nearest below, to within a third of its height. The edge is
+  interpolated between those two, since a receipt in a hand leans. A number
+  above the first amount or below the last has no column to stand in, and only
+  amounts with a separator make the column, so one short number cannot vouch
+  for the next. What this would still take for money is a count of a hundred
+  or more printed in the amounts' column. `AmountColumnTest` holds it to every
+  line, with its box, of the Chilean receipt below.
 - **A currency printed on the receipt still wins** over the switch.
 
 The recognizer's lines are kept with the photograph, so changing a currency or
@@ -459,8 +468,8 @@ and nothing else on it is taken for money.
 
 It also holds the engine to a Chilean one, which arrived as a screenshot of
 someone's story — 923 pixels wide, tilted, as good as that receipt will get —
-with the account's name and picture and the card's digits blanked. All eleven
-amounts with a separator are read, and nothing else.
+with the account's name and picture and the card's digits blanked. All twelve
+amounts are read, the drink's `990` among them, and nothing else.
 
 The minus was the hard part. It is a faint dotted dash, and the recognizer
 reads it as `-`, as `~`, or not at all, and not at all is a discount shown as a
