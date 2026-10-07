@@ -163,7 +163,7 @@ fun resolveRates(
  * Currencies with no minor unit, so a converted amount never shows cents that
  * do not exist. Only those this converter knows are listed.
  */
-private val ZERO_DECIMAL = setOf("CLP", "IDR", "JPY", "KRW", "PYG", "VND")
+internal val ZERO_DECIMAL = setOf("CLP", "IDR", "JPY", "KRW", "PYG", "VND")
 
 /**
  * How many decimals a converted amount is shown with: cents below 100, none

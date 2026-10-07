@@ -84,6 +84,65 @@ class ReceiptTest {
         )
     }
 
+    private fun pesos(text: String) = findBareAmounts(text, "CLP").map { it.amount }
+
+    /** The lines of a Chilean receipt, from IKEA's restaurant in Santiago. */
+    @Test
+    fun `whole pesos grouped by thousands are amounts in a currency without cents`() {
+        assertEquals(listOf(8990.0), pesos("Pastelera con carne pc 8.990 D"))
+        assertEquals(listOf(1190.0), pesos("1.190 D"))
+        assertEquals(listOf(24040.0), pesos("Total $ 24.040"))
+        assertEquals(listOf(-24040.0), pesos("-24.040"))
+        assertEquals(listOf(20201.0, 3839.0), pesos("Monto Neto 20.201 IVA 19% 3.839"))
+        assertEquals(listOf(1234567.0), pesos("1.234.567"))
+        assertEquals(listOf(3500.0), findBareAmounts("3,500", "JPY").map { it.amount })
+    }
+
+    @Test
+    fun `the numbers on a Chilean receipt that are not money are left alone`() {
+        val lines = listOf(
+            // Under a thousand there is no separator to tell a price by.
+            "LASKANDE bebida IKEA pc 990 D",
+            "Número de Artículos: 7",
+            "N° de Item: 598000289",
+            "Recibo 0000000242000239443",
+            "Fecha: 05-10-26 17:27",
+            "Trans: 268626",
+            "T. Crédito 6790",
+            "IVA 19%",
+            "R.U.T.: 76.123.456-7",
+            "RUT 12.345.678-K",
+            "0.654",
+            "1.250 kg",
+            "2.000 x 1.990",
+            "5.10.2026",
+            // A Chilean weight, with the decimal comma, is not grouped pesos.
+            "1,234",
+        )
+        for (line in lines) {
+            val expected = if (line == "2.000 x 1.990") listOf(1990.0) else emptyList()
+            assertEquals(expected, pesos(line), line)
+        }
+    }
+
+    @Test
+    fun `whole amounts are read only for a currency without cents`() {
+        assertEquals(emptyList(), amounts("24.040"))
+        assertEquals(emptyList(), findBareAmounts("24.040", "ARS"))
+        assertEquals(listOf(24040.0), pesos("24.040"))
+        // Cents still read the old way, whatever the currency.
+        assertEquals(listOf(1234.56), pesos("1.234,56"))
+    }
+
+    @Test
+    fun `a receipt in pesos is read through the receipt switch`() {
+        val line = OcrLine("Daim Tarta de almend pc 1.990 D", box = Box(0.0, 0.0, 300.0, 20.0))
+        assertEquals(
+            listOf(Price(1990.0, "CLP")),
+            locatePrices(listOf(line), PriceContext(bareAmounts = "CLP")).map { it.price },
+        )
+    }
+
     @Test
     fun `a discount keeps its sign when converted`() {
         assertEquals("-63.10 USD", formatConverted(-63.1, "USD"))

@@ -61,6 +61,45 @@ class ReceiptPhotoTest {
     }
 
     /**
+     * A Chilean receipt: pesos have no cents, so every amount is a whole number
+     * grouped by thousands — `8.990`, `24.040`. It arrived as a screenshot of
+     * someone's story, 923 pixels wide and tilted a few degrees, which is as
+     * good as it gets; the account's name and picture and the card's digits
+     * are blanked.
+     */
+    @Test
+    fun readsWholePesos() {
+        val context = InstrumentationRegistry.getInstrumentation().context
+        val bitmap = context.assets.open("regression/receipt-clp.jpg").use {
+            BitmapFactory.decodeStream(it)
+        }
+        engine.reset()
+        val lines = engine.recognize(bitmap, thorough = true)
+        bitmap.recycle()
+        val amounts = locatePrices(lines, PriceContext(bareAmounts = "CLP"))
+            .map { it.price.amount }
+
+        Log.i(TAG, "lines: ${lines.map { it.text }}")
+        Log.i(TAG, "amounts: $amounts")
+
+        // Every amount on it but the drink's 990, which has no separator to
+        // tell it from the article count below. The total is printed twice,
+        // and once more as the card's payment.
+        val printed = listOf(
+            8990.0, 5490.0, 1190.0, 1490.0, 1990.0, 3900.0,
+            24040.0, -24040.0, 20201.0, 3839.0, 24040.0,
+        )
+
+        val invented = amounts.filter { a -> printed.none { kotlin.math.abs(it - a) < 0.005 } }
+        assertTrue("read amounts that are not on the receipt: $invented\n$lines", invented.isEmpty())
+
+        assertTrue(
+            "read ${amounts.size} of the ${printed.size} amounts: $amounts",
+            amounts.size >= printed.size - 1,
+        )
+    }
+
+    /**
      * The receipt's lines sit a line apart, and near the subtotal the amounts'
      * boxes overlap outright: drawn as they came, the labels piled up and hid
      * each other. Laid out, no two overlap, and each is still on its price.

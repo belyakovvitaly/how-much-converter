@@ -214,7 +214,7 @@ fun locatePrices(
         // A number that already has a currency keeps it; only the rest are
         // taken to be in the receipt's.
         val bare = context.bareAmounts?.let { code ->
-            findBareAmounts(run.text)
+            findBareAmounts(run.text, code)
                 .filter { amount -> found.none { it.range.overlaps(amount.range) } }
                 .map { FoundPrice(Price(it.amount, code), it.range) }
         }.orEmpty()

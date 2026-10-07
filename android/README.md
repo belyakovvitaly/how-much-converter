@@ -439,6 +439,13 @@ that are not — dates, times, weights, article codes, tax IDs:
   `2,50 x 14000,00` only the price per kilo is converted.
 - **A discount keeps its minus**, and the conversion shows it.
 - **`0,00` is skipped**: change not given says nothing worth a label.
+- **Without cents, a thousands separator.** A peso in Chile has no minor unit,
+  and its receipt says `8.990` and `24.040`. For such a currency — the ones
+  `convertedDigits` already shows without cents — a whole number counts too,
+  grouped the way that currency writes it: a point, or a comma for the yen and
+  the won. One with no separator at all does not: `990` is written exactly like
+  the `7` of an article count, and is left unread. Nor does a number followed
+  by a dash (`76.123.456-7`, a Chilean tax ID) or by a unit (`1.250 kg`).
 - **A currency printed on the receipt still wins** over the switch.
 
 The recognizer's lines are kept with the photograph, so changing a currency or
@@ -449,6 +456,11 @@ the switch re-reads the prices from them without reading the picture again.
 curled, in a hand, at the size a gallery picture is read at, with the card's
 last digits blanked. All thirteen amounts are read, discounts with their minus,
 and nothing else on it is taken for money.
+
+It also holds the engine to a Chilean one, which arrived as a screenshot of
+someone's story — 923 pixels wide, tilted, as good as that receipt will get —
+with the account's name and picture and the card's digits blanked. All eleven
+amounts with a separator are read, and nothing else.
 
 The minus was the hard part. It is a faint dotted dash, and the recognizer
 reads it as `-`, as `~`, or not at all, and not at all is a discount shown as a
